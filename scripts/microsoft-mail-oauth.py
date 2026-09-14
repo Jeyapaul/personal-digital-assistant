@@ -86,8 +86,35 @@ def _post_form(url: str, values: dict[str, str]) -> dict:
     try:
         with urllib.request.urlopen(request, timeout=20, context=_ssl_context()) as response:
             payload = json.loads(response.read(128 * 1024).decode("utf-8"))
-    except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError, ValueError) as exc:
-        raise SystemExit("Microsoft OAuth request failed") from exc
+    except urllib.error.HTTPError as exc:
+        # Microsoft returns useful, non-secret diagnostics for bad tenant,
+        # client-registration, and consent configuration. Never print the
+        # submitted form, authorization code, access token, or refresh token.
+        try:
+            raw = exc.read(16 * 1024).decode("utf-8", errors="replace")
+            detail = json.loads(raw) if raw else {}
+        except (OSError, ValueError):
+            detail = {}
+        if isinstance(detail, dict):
+            code = str(detail.get("error") or "http_error")
+            description = str(detail.get("error_description") or "").replace("\\n", " ").strip()
+            if len(description) > 300:
+                description = description[:300] + "..."
+            suffix = f": {code}"
+            if description:
+                suffix += f" — {description}"
+        else:
+            suffix = ": http_error"
+        raise SystemExit(f"Microsoft OAuth request failed (HTTP {exc.code}){suffix}") from exc
+    except urllib.error.URLError as exc:
+        reason = str(getattr(exc, "reason", "network error"))
+        if len(reason) > 240:
+            reason = reason[:240] + "..."
+        raise SystemExit(f"Microsoft OAuth request failed before a response: {reason}") from exc
+    except (TimeoutError, ssl.SSLError) as exc:
+        raise SystemExit(f"Microsoft OAuth request failed before a response: {exc}") from exc
+    except ValueError as exc:
+        raise SystemExit("Microsoft OAuth returned invalid JSON") from exc
     if not isinstance(payload, dict):
         raise SystemExit("Microsoft OAuth returned an invalid response")
     return payload
