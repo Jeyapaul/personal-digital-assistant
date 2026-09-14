@@ -1,0 +1,12 @@
+# Phase 3: configured by scripts/discord-setup.py; secrets stay in the
+# persistent Hermes .env and are never committed here.
+enabled: false
+dm_only: true
+allowed_user_id: REPLACE_WITH_DISCORD_USER_ID
+
+# Ignore every server channel. The only delivery target is the resolved DM
+# channel for allowed_user_id.
+ignored_channels:
+  - '*'
+require_mention: true
+auto_thread: false

@@ -1,0 +1,34 @@
+# Local Hermes state and credentials
+.env
+.env.*
+*.token
+*.secret
+*.pem
+*.key
+*.p12
+
+# Credentials and runtime databases, wherever a local operator places them
+**/credentials/
+*.sqlite
+*.sqlite3
+*.db
+*.db-wal
+*.db-shm
+*.log
+*.pid
+
+# Runtime data is stored outside the project tree
+/data/
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# OAuth/browser artifacts (credentials live outside the project)
+oauth/
+*-last-url.txt
+*-pending.json
+
+# macOS
+.DS_Store

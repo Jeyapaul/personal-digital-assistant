@@ -1,0 +1,63 @@
+# Docker runtime profile. This is mounted read-only over /data/config.yaml.
+# It keeps the host-local profile separate from the container's host gateway
+# address for Ollama.
+_config_version: 39
+
+timezone: Asia/Kolkata
+
+model:
+  default: qwen3.8:latest
+  provider: ollama
+  base_url: http://host.docker.internal:11434/v1
+  api_mode: chat_completions
+
+database:
+  journal_mode: delete
+
+agent:
+  max_turns: 6
+  disabled_toolsets:
+    - terminal
+    - file
+    - browser
+    - web
+    - code_execution
+    - computer_use
+    - delegation
+    - cronjob
+    - memory
+    - session_search
+    - skills
+    - mcp
+    - project
+    - todo
+    - clarify
+    - discord_admin
+    - a2a
+
+toolsets:
+  - personal-assistant-mail
+
+plugins:
+  enabled:
+    - personal-assistant-mail
+  disabled: []
+
+platform_toolsets:
+  cli:
+    - personal-assistant-mail
+  discord: []
+
+discord:
+  require_mention: true
+  ignored_channels:
+    - '*'
+  auto_thread: false
+
+telemetry:
+  shared_metrics:
+    enabled: false
+
+memory:
+  memory_enabled: false
+  user_profile_enabled: false

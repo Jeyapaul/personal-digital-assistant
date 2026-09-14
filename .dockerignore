@@ -1,0 +1,26 @@
+# Secrets and host state must never enter the image build context.
+.env
+.env.*
+/data/
+oauth/
+**/*token*
+**/*secret*
+**/credentials/
+
+# Runtime/build artifacts.
+.git/
+.DS_Store
+__pycache__/
+*.py[cod]
+.pytest_cache/
+node_modules/
+
+# Operator documentation and tests are not needed at runtime.
+docs/
+tests/
+.github/
+LICENSE
+CONTRIBUTING.md
+CODE_OF_CONDUCT.md
+SECURITY.md
+CHANGELOG.md

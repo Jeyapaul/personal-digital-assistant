@@ -1,0 +1,11 @@
+# Authoritative report schedule. Hermes cron owns execution.
+timezone: Asia/Kolkata
+cron: '0 10 * * *'
+preflight_time: '09:45'
+
+# launchd is only a lifecycle supervisor/preflight for Docker + Hermes.
+# It must not send the report or create a second scheduler.
+launchd:
+  enabled: true
+  keep_gateway_running: true
+  preflight_before_cron_minutes: 15

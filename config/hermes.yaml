@@ -1,0 +1,69 @@
+# Phase 1 Hermes profile template.
+# scripts/prepare-hermes-home.sh copies this to the persistent Hermes home.
+
+_config_version: 39
+
+timezone: Asia/Kolkata
+
+model:
+  # Selected from the phase-1 Ollama probe; re-run the probe after model changes.
+  default: qwen3.8:latest
+  provider: ollama
+  base_url: http://127.0.0.1:11434/v1
+  api_mode: chat_completions
+
+database:
+  # Safer default for a macOS bind-mounted persistent directory.
+  journal_mode: delete
+
+agent:
+  max_turns: 6
+  # These remain disabled even if a broader platform bundle is enabled later.
+  disabled_toolsets:
+    - terminal
+    - file
+    - browser
+    - web
+    - code_execution
+    - computer_use
+    - delegation
+    - cronjob
+    - memory
+    - session_search
+    - skills
+    - mcp
+    - project
+    - todo
+    - clarify
+    - discord_admin
+    - a2a
+
+# Phase 2 exposes only the fixed read-only mail capability.
+toolsets:
+  - personal-assistant-mail
+
+plugins:
+  enabled:
+    - personal-assistant-mail
+  disabled: []
+
+# Keep platform bundles empty until Discord delivery is implemented.
+platform_toolsets:
+  cli:
+    - personal-assistant-mail
+  # The Discord gateway may run, but Discord tools are not exposed to agents.
+  discord: []
+
+discord:
+  require_mention: true
+  ignored_channels:
+    - '*'
+  auto_thread: false
+
+telemetry:
+  shared_metrics:
+    enabled: false
+
+memory:
+  memory_enabled: false
+  user_profile_enabled: false

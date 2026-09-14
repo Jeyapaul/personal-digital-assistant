@@ -1,0 +1,33 @@
+# Phase 2 mail-source policy. Credentials are never stored in this repository.
+# Expected private OAuth files under the persistent Hermes data directory:
+#   credentials/gmail.json
+#   credentials/microsoft.json
+# These are created by the project-local narrow OAuth setup scripts.
+
+sources:
+  gmail:
+    enabled: true
+    oauth_scope: https://www.googleapis.com/auth/gmail.readonly
+    token_file: credentials/gmail.json
+    oauth_setup: scripts/google-gmail-oauth.py
+  microsoft:
+    enabled: false
+    # Enable after Microsoft OAuth is completed.
+    oauth_scope: Mail.Read
+    token_file: credentials/microsoft.json
+    oauth_setup: scripts/microsoft-mail-oauth.py
+
+policy:
+  timezone: Asia/Kolkata
+  window: previous_ist_calendar_day
+  unread_only: true
+  leave_unread: true
+  download_attachments: false
+  include_attachment_names: true
+  max_messages: 100
+  max_body_chars: 12000
+  allowed_api_hosts:
+    - gmail.googleapis.com
+    - graph.microsoft.com
+  scheduled_connector: fixed_api_adapters
+  himalaya_enabled: false
