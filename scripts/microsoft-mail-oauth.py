@@ -95,8 +95,13 @@ def _post_form(url: str, values: dict[str, str]) -> dict:
             detail = json.loads(raw) if raw else {}
         except (OSError, ValueError):
             detail = {}
-        if isinstance(detail, dict):
-            code = str(detail.get("error") or "http_error")
+        if isinstance(detail, dict) and detail.get("error"):
+            # The device-code token endpoint intentionally returns HTTP 400
+            # with authorization_pending and slow_down while the user has not
+            # completed consent. Let authenticate() handle those poll states.
+            if detail.get("error") in {"authorization_pending", "slow_down"}:
+                return detail
+            code = str(detail.get("error"))
             description = str(detail.get("error_description") or "").replace("\\n", " ").strip()
             if len(description) > 300:
                 description = description[:300] + "..."
