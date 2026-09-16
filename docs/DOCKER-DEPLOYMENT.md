@@ -113,6 +113,11 @@ local model profile, prepare it before starting the container:
 export PDA_MODEL=qwen3.8-pda:64k
 ```
 
+The upstream model accepts a 128K context profile, but on the current 32 GB
+Apple Silicon host it uses approximately 20 GB while loaded and did not
+complete the full scheduled mail workflow reliably. Keep the 64K profile as
+the production default; test a larger profile separately before changing it.
+
 Inspect logs:
 
 ```bash

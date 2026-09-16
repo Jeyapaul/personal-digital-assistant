@@ -53,8 +53,9 @@ To prepare a private Hermes home:
 ./scripts/prepare-hermes-home.sh
 ```
 
-The project uses a local Ollama model with a context window large enough for
-mail tool results. Prepare the recommended derived model with:
+The project uses a local Ollama model with a 64K context window, large enough
+for the bounded mail tool results. A 128K profile is supported experimentally,
+but requires substantially more memory and is not the default on a 32 GB host. Prepare the recommended derived model with:
 
 ```bash
 ./scripts/prepare-ollama-model.sh
