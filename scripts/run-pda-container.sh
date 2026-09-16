@@ -8,6 +8,10 @@ CONTAINER=${PDA_CONTAINER:-personal-assistant-hermes}
 INTERNAL_NET=${PDA_INTERNAL_NETWORK:-personal-assistant-internal}
 PROXY=${PDA_EGRESS_CONTAINER:-personal-assistant-egress}
 MAIL_SOURCES=${PDA_MAIL_SOURCES:-gmail}
+MODEL=${PDA_MODEL:-qwen3.8-pda:64k}
+case "$MODEL" in
+  (*[!A-Za-z0-9._:-]*) echo "Invalid PDA_MODEL" >&2; exit 2 ;;
+esac
 HOST_GATEWAY=${PDA_HOST_GATEWAY:-$(docker run --rm --add-host host.docker.internal:host-gateway alpine:3.22 getent ahostsv4 host.docker.internal | awk 'NR==1 {print $1}')}
 if [ -z "$HOST_GATEWAY" ]; then
   echo "Unable to resolve the Docker host gateway IPv4 address" >&2
@@ -24,6 +28,21 @@ if [ ! -f "$DOCKER_CONFIG" ]; then
   cp "$ROOT/config/hermes-docker.yaml" "$DOCKER_CONFIG"
   chmod 600 "$DOCKER_CONFIG"
 fi
+# Keep the persistent Docker profile aligned with the selected local model.
+# The model name is restricted above and the edit uses only the standard
+# library, so this does not require PyYAML on the host.
+python3 - "$DOCKER_CONFIG" "$MODEL" <<'PY'
+import re
+import sys
+from pathlib import Path
+path, model = Path(sys.argv[1]), sys.argv[2]
+text = path.read_text(encoding="utf-8")
+updated, count = re.subn(r"(?m)^(\s+default:\s+).+$", rf"\g<1>{model}", text, count=1)
+if count != 1:
+    raise SystemExit("Docker Hermes profile has no model.default entry")
+path.write_text(updated, encoding="utf-8")
+path.chmod(0o600)
+PY
 if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
   echo "Missing image $IMAGE; run scripts/build-pda-image.sh first" >&2
   exit 2

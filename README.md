@@ -53,8 +53,15 @@ To prepare a private Hermes home:
 ./scripts/prepare-hermes-home.sh
 ```
 
-The current local model is `qwen3.8:latest`, selected from the Ollama probe.
-The Hermes launcher uses the project plugin with:
+The project uses a local Ollama model with a context window large enough for
+mail tool results. Prepare the recommended derived model with:
+
+```bash
+./scripts/prepare-ollama-model.sh
+```
+
+Set `PDA_MODEL=qwen3.8-pda:64k` for the Docker/launchd deployment. The Hermes
+launcher uses the project plugin with:
 
 - `HERMES_HOME` set to the persistent data directory
 - `HERMES_ENABLE_PROJECT_PLUGINS=1`

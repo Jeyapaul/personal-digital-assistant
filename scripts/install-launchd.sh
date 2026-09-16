@@ -4,6 +4,7 @@ set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 DATA_DIR=${PERSONAL_ASSISTANT_DATA_DIR:-$HOME/.hermes/personal-assistant-data}
 MAIL_SOURCES=${PDA_MAIL_SOURCES:-gmail}
+MODEL=${PDA_MODEL:-qwen3.8-pda:64k}
 LABEL=com.personal-assistant.hermes
 PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
 mkdir -p "$HOME/Library/LaunchAgents" "$DATA_DIR/lifecycle"
@@ -29,6 +30,7 @@ cat > "$PLIST" <<EOF
     <key>PDA_INTERNAL_NETWORK</key><string>personal-assistant-internal</string>
     <key>PDA_EGRESS_NETWORK</key><string>personal-assistant-egress-out</string>
     <key>PDA_MAIL_SOURCES</key><string>$MAIL_SOURCES</string>
+    <key>PDA_MODEL</key><string>$MODEL</string>
   </dict>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
@@ -43,9 +45,22 @@ cat > "$PLIST" <<EOF
 EOF
 chmod 600 "$PLIST"
 
-launchctl bootout "gui/$(id -u)/$LABEL" >/dev/null 2>&1 || true
-launchctl bootstrap "gui/$(id -u)" "$PLIST"
-launchctl enable "gui/$(id -u)/$LABEL"
-launchctl kickstart -k "gui/$(id -u)/$LABEL"
+DOMAIN="gui/$(id -u)"
+launchctl bootout "$DOMAIN/$LABEL" >/dev/null 2>&1 || true
+# bootout can leave a SIGTERMed LaunchAgent visible briefly. Wait for the
+# domain entry to disappear before bootstrapping the replacement.
+for _ in $(seq 1 30); do
+  if ! launchctl print "$DOMAIN/$LABEL" >/dev/null 2>&1; then
+    break
+  fi
+  sleep 1
+done
+if launchctl print "$DOMAIN/$LABEL" >/dev/null 2>&1; then
+  echo "launchd did not unload $LABEL" >&2
+  exit 1
+fi
+launchctl bootstrap "$DOMAIN" "$PLIST"
+launchctl enable "$DOMAIN/$LABEL"
+launchctl kickstart -k "$DOMAIN/$LABEL"
 printf '%s\n' "Installed and started $LABEL"
 printf '%s\n' "$PLIST"

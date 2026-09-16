@@ -29,9 +29,14 @@ IST = ZoneInfo("Asia/Kolkata")
 UTC = dt.timezone.utc
 GMAIL_HOST = "gmail.googleapis.com"
 GRAPH_HOST = "graph.microsoft.com"
-MAX_MESSAGES = 100
+# Bound the model-facing result as well as each individual body. This keeps
+# tool results below the context window of the selected local model.
+MAX_MESSAGES = 25
 MAX_PAGES = 10
-MAX_BODY_CHARS = 12000
+# Keep the fixed tool result below local-model context limits even when a
+# message contains a very large HTML body. The report needs enough context for
+# sender/subject/action summarization, not the complete message body.
+MAX_BODY_CHARS = 250
 GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.readonly"
 GMAIL_ALLOWED_SCOPES = {GMAIL_SCOPE}
 GRAPH_SCOPE = "Mail.Read"

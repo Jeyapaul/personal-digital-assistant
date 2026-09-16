@@ -91,6 +91,10 @@ class MailSourceParserTests(unittest.TestCase):
             with self.assertRaises(sources.MailSourceError):
                 sources.load_access_token(path, "https://www.googleapis.com/auth/gmail.readonly")
 
+    def test_model_facing_body_is_bounded(self) -> None:
+        bounded = sources._safe_body("x" * (sources.MAX_BODY_CHARS + 100))
+        self.assertEqual(len(bounded), sources.MAX_BODY_CHARS)
+
     def test_graph_parser_keeps_body_metadata_without_attachment_bytes(self) -> None:
         received = self.window.start_utc.isoformat().replace("+00:00", "Z")
         item = {

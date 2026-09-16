@@ -10,7 +10,8 @@ Label: com.personal-assistant.hermes
 Plist: ~/Library/LaunchAgents/com.personal-assistant.hermes.plist
 ```
 
-The service is configured with:
+The service carries the selected `PDA_MODEL` and `PDA_MAIL_SOURCES` values into
+container recovery. The service is configured with:
 
 - `RunAtLoad`
 - `KeepAlive`

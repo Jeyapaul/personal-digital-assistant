@@ -105,7 +105,13 @@ That profile points Ollama to:
 http://host.docker.internal:11434/v1
 ```
 
-The host Ollama service must be listening on port `11434`.
+The host Ollama service must be listening on port `11434`. For the recommended
+local model profile, prepare it before starting the container:
+
+```bash
+./scripts/prepare-ollama-model.sh
+export PDA_MODEL=qwen3.8-pda:64k
+```
 
 Inspect logs:
 

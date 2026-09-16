@@ -50,7 +50,7 @@ Schedule: 0 10 * * *
 Timezone: Asia/Kolkata
 Delivery: discord:<resolved DM channel ID>
 Toolset: personal-assistant-mail only
-Model: qwen3.8:latest via Ollama
+Model: the configured `PDA_MODEL` via Ollama (recommended: `qwen3.8-pda:64k`)
 ```
 
 The prompt instructs Hermes to call `mail_report` exactly once and treat email

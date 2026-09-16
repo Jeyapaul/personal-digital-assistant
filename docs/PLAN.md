@@ -35,7 +35,8 @@ scheduled job.
    proxy use reviewed platform-specific digests; re-review them when updating.
 5. **Lifecycle:** launchd startup, health checks, restart handling, and
    preflight without a second scheduler. Complete for the current macOS user
-   session; see `docs/LAUNCHD-SUPERVISION.md`.
+   session; see `docs/LAUNCHD-SUPERVISION.md`. Local model context sizing is
+   part of the deployment profile.
 
 ## Operator-owned prerequisites
 

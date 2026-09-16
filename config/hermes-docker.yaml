@@ -6,7 +6,7 @@ _config_version: 39
 timezone: Asia/Kolkata
 
 model:
-  default: qwen3.8:latest
+  default: qwen3.8-pda:64k
   provider: ollama
   base_url: http://host.docker.internal:11434/v1
   api_mode: chat_completions
@@ -16,6 +16,10 @@ database:
 
 agent:
   max_turns: 6
+
+tools:
+  tool_search:
+    enabled: off
   disabled_toolsets:
     - terminal
     - file

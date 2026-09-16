@@ -24,8 +24,9 @@ policy:
   leave_unread: true
   download_attachments: false
   include_attachment_names: true
-  max_messages: 100
-  max_body_chars: 12000
+  max_messages: 25
+  # Keep model-facing tool results bounded for local-model context windows.
+  max_body_chars: 250
   allowed_api_hosts:
     - gmail.googleapis.com
     - graph.microsoft.com

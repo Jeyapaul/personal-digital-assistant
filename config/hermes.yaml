@@ -7,7 +7,7 @@ timezone: Asia/Kolkata
 
 model:
   # Selected from the phase-1 Ollama probe; re-run the probe after model changes.
-  default: qwen3.8:latest
+  default: qwen3.8-pda:64k
   provider: ollama
   base_url: http://127.0.0.1:11434/v1
   api_mode: chat_completions
@@ -18,6 +18,12 @@ database:
 
 agent:
   max_turns: 6
+
+# Keep the fixed mail tool directly visible; the scheduled profile has only
+# one model-facing operation and should not spend turns searching tool catalogs.
+tools:
+  tool_search:
+    enabled: off
   # These remain disabled even if a broader platform bundle is enabled later.
   disabled_toolsets:
     - terminal

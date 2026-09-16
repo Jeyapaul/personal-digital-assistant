@@ -14,12 +14,25 @@ log() {
   printf '%s %s\n' "$(TZ=Asia/Kolkata date '+%Y-%m-%dT%H:%M:%S%z')" "$*"
 }
 
-# launchd should never run two copies of this supervisor.
+# launchd should never run two copies of this supervisor. A hard kill or
+# machine restart can leave the old lock behind, so reclaim it when its owner
+# is no longer alive.
 if ! mkdir "$LOCK_DIR" 2>/dev/null; then
-  log "another lifecycle supervisor is already running"
-  exit 0
+  owner=""
+  [ -r "$LOCK_DIR/pid" ] && owner=$(cat "$LOCK_DIR/pid" 2>/dev/null || true)
+  if [ -n "$owner" ] && kill -0 "$owner" 2>/dev/null; then
+    log "another lifecycle supervisor is already running (pid=$owner)"
+    exit 0
+  fi
+  rmdir "$LOCK_DIR" 2>/dev/null || {
+    log "unable to reclaim stale supervisor lock"
+    exit 1
+  }
+  mkdir "$LOCK_DIR"
 fi
+printf '%s\n' "$$" > "$LOCK_DIR/pid"
 cleanup() {
+  rm -f "$LOCK_DIR/pid" 2>/dev/null || true
   rmdir "$LOCK_DIR" 2>/dev/null || true
 }
 trap cleanup EXIT INT TERM

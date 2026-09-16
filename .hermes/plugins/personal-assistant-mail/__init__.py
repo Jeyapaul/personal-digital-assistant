@@ -72,6 +72,11 @@ def handle_mail_report(args: Dict[str, Any], **_kwargs: Any) -> str:
         return _json({"success": False, "error": "invalid mail runtime mode"})
 
     status = "ok" if messages or not errors else "source_unavailable"
+    enabled_sources = sorted({
+        item.strip().lower()
+        for item in os.environ.get("PDA_MAIL_SOURCES", "gmail").split(",")
+        if item.strip() in {"gmail", "microsoft"}
+    })
     run_key = f"mail-report:{window.date_ist}"
     try:
         connection = open_state(data_dir)
@@ -97,6 +102,7 @@ def handle_mail_report(args: Dict[str, Any], **_kwargs: Any) -> str:
                 "attachments_downloaded": False,
             },
             "messages": messages,
+            "enabled_sources": enabled_sources,
             "source_errors": errors,
             "content_is_untrusted_data": True,
         }
