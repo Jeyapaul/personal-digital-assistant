@@ -296,8 +296,12 @@ def _write_private_json(path: Path, payload: Dict[str, Any]) -> None:
     path.chmod(0o600)
 
 
-def load_access_token(path: Path, required_scope: str) -> str:
-    """Load and, when necessary, refresh a narrowly scoped OAuth credential."""
+def load_access_token(path: Path, required_scope: str, force_refresh: bool = False) -> str:
+    """Load and, when necessary, refresh a narrowly scoped OAuth credential.
+
+    ``force_refresh`` is used only by the operator-side credential health
+    check; normal mail collection reuses a valid access token.
+    """
     try:
         mode = path.stat().st_mode & 0o777
     except OSError as exc:
@@ -319,7 +323,7 @@ def load_access_token(path: Path, required_scope: str) -> str:
 
     token = value.get("access_token") or value.get("token")
     expires = _expiry(value.get("expiry") or value.get("expires_at"))
-    if isinstance(token, str) and token.strip() and (expires is None or expires > dt.datetime.now(UTC) + dt.timedelta(seconds=60)):
+    if not force_refresh and isinstance(token, str) and token.strip() and (expires is None or expires > dt.datetime.now(UTC) + dt.timedelta(seconds=60)):
         return token.strip()
 
     refresh_token = value.get("refresh_token")

@@ -49,6 +49,15 @@ container_running() {
   [ "$(docker inspect -f '{{.State.Running}}' "$1" 2>/dev/null || true)" = true ]
 }
 
+credential_health() {
+  output=$(PERSONAL_ASSISTANT_DATA_DIR="$DATA_DIR" \
+    PDA_MAIL_SOURCES="${PDA_MAIL_SOURCES:-gmail}" \
+    python3 "$ROOT/scripts/credential-health.py" 2>&1 || true)
+  if [ -n "$output" ]; then
+    log "credential health: $output"
+  fi
+}
+
 ensure_runtime() {
   if ! docker_ready; then
     log "Docker is unavailable; requesting Docker Desktop startup"
@@ -83,6 +92,7 @@ preflight() {
 }
 
 run_once() {
+  credential_health
   ensure_runtime || return 0
   now_minutes=$(TZ=Asia/Kolkata date '+%H%M')
   date_key=$(TZ=Asia/Kolkata date '+%Y-%m-%d')

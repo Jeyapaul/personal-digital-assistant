@@ -47,11 +47,20 @@ Uninstall the supervisor without removing containers or data:
 1. Docker Desktop is available.
 2. The allowlisted egress proxy is running.
 3. The hardened Hermes container is running.
-4. At or after 09:45 IST, the daily preflight has passed.
+4. The enabled OAuth credentials can refresh.
+5. At or after 09:45 IST, the daily preflight has passed.
 
 If Docker is unavailable, it requests Docker Desktop startup with `open` and
 retries. If a managed container has stopped, it starts it again. It never
 runs `hermes cron tick`, `hermes cron run`, or a report command.
+
+The operator-side `scripts/credential-health.py` check runs at most hourly for
+healthy sources and retries failed sources every five minutes. It attempts a
+refresh-token exchange without reading mail. If Gmail or Microsoft OAuth is
+invalid, it sends one alert (with safe reauthorization instructions) to the
+fixed DM channel. It repeats an unresolved alert no more than every six hours
+and sends a recovery message after the credential works again. Tokens and
+provider error details are never included in the Discord message.
 
 ## 09:45 IST preflight
 
@@ -68,6 +77,7 @@ It checks:
 - Container hardening and internal-network topology.
 - Gmail allowlisted connectivity through Squid.
 - The container's Hermes cron job and next scheduled run.
+- Credential shape, permissions, and refresh-token health for enabled sources.
 
 The preflight does not collect mail, mark messages read, call the model, or
 send a Discord report.

@@ -166,6 +166,8 @@ Install the macOS lifecycle supervisor with:
 ./scripts/status-pda.sh
 ```
 
-launchd starts and supervises Docker/Hermes and runs an approximately 09:45 IST
-preflight. Hermes cron remains the only report scheduler. See
+launchd starts and supervises Docker/Hermes, checks enabled OAuth refresh-token
+health, and runs an approximately 09:45 IST preflight. If Gmail or Microsoft
+requires manual reauthorization, the fixed Discord DM receives an alert.
+Hermes cron remains the only report scheduler. See
 [`docs/LAUNCHD-SUPERVISION.md`](docs/LAUNCHD-SUPERVISION.md).
