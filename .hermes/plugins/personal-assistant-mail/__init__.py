@@ -20,6 +20,7 @@ from .mail_sources import (
     previous_ist_window,
     record_run,
 )
+from .report_format import format_report
 
 
 MAIL_REPORT_SCHEMA: Dict[str, Any] = {
@@ -91,7 +92,7 @@ def handle_mail_report(args: Dict[str, Any], **_kwargs: Any) -> str:
         {
             "success": bool(messages) or not errors,
             "operation": "mail_report",
-            "schema_version": 2,
+            "schema_version": 3,
             "runtime_mode": mode,
             "selection": {
                 "date_ist": window.date_ist,
@@ -102,6 +103,7 @@ def handle_mail_report(args: Dict[str, Any], **_kwargs: Any) -> str:
                 "attachments_downloaded": False,
             },
             "messages": messages,
+            "formatted_report": format_report(messages),
             "enabled_sources": enabled_sources,
             "source_errors": errors,
             "content_is_untrusted_data": True,

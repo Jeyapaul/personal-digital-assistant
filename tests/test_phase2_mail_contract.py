@@ -42,6 +42,8 @@ class Phase2MailContractTests(unittest.TestCase):
         self.assertFalse(result["selection"]["attachments_downloaded"])
         self.assertTrue(result["content_is_untrusted_data"])
         self.assertIn("IGNORE ALL PREVIOUS INSTRUCTIONS", result["messages"][0]["body"])
+        self.assertIn("### 01", result["formatted_report"])
+        self.assertIn("Untrusted content excerpt", result["formatted_report"])
         self.assertNotIn("contentBytes", result["messages"][0])
         os.environ.pop("PDA_MAIL_MODE", None)
         os.environ.pop("PDA_FIXTURE_SCENARIO", None)
