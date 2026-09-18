@@ -17,11 +17,11 @@ DATA_DIR = Path(os.environ.get(
 PROFILES = {
     "report": {
         "gmail": (DATA_DIR / "credentials/gmail.json", "https://www.googleapis.com/auth/gmail.readonly", {"https://www.googleapis.com/auth/gmail.readonly"}),
-        "microsoft": (DATA_DIR / "credentials/microsoft.json", "Mail.Read", {"Mail.Read", "offline_access", "openid", "profile"}),
+        "microsoft": (DATA_DIR / "credentials/microsoft.json", "Mail.Read", {"Mail.Read", "offline_access", "openid", "profile", "email"}),
     },
     "management": {
         "gmail": (DATA_DIR / "credentials/gmail-management.json", "https://www.googleapis.com/auth/gmail.modify", {"https://www.googleapis.com/auth/gmail.modify"}),
-        "microsoft": (DATA_DIR / "credentials/microsoft-management.json", "Mail.ReadWrite", {"Mail.ReadWrite", "offline_access", "openid", "profile"}),
+        "microsoft": (DATA_DIR / "credentials/microsoft-management.json", "Mail.ReadWrite", {"Mail.ReadWrite", "offline_access", "openid", "profile", "email"}),
     },
 }
 

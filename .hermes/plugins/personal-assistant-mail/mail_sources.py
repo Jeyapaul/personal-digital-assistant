@@ -43,8 +43,8 @@ GMAIL_ALLOWED_SCOPES = {GMAIL_SCOPE}
 GMAIL_MANAGEMENT_ALLOWED_SCOPES = {GMAIL_MODIFY_SCOPE}
 GRAPH_SCOPE = "Mail.Read"
 GRAPH_MANAGEMENT_SCOPE = "Mail.ReadWrite"
-GRAPH_ALLOWED_SCOPES = {"Mail.Read", "offline_access", "openid", "profile"}
-GRAPH_MANAGEMENT_ALLOWED_SCOPES = {"Mail.ReadWrite", "offline_access", "openid", "profile"}
+GRAPH_ALLOWED_SCOPES = {"Mail.Read", "offline_access", "openid", "profile", "email"}
+GRAPH_MANAGEMENT_ALLOWED_SCOPES = {"Mail.ReadWrite", "offline_access", "openid", "profile", "email"}
 
 
 def _ssl_context() -> ssl.SSLContext:
@@ -357,7 +357,7 @@ def load_access_token(path: Path, required_scope: str, force_refresh: bool = Fal
             "client_id": client_id,
             "refresh_token": refresh_token,
             "grant_type": "refresh_token",
-            "scope": "Mail.Read offline_access openid profile" if required_scope == GRAPH_SCOPE else "Mail.ReadWrite offline_access openid profile",
+            "scope": "Mail.Read offline_access openid profile email" if required_scope == GRAPH_SCOPE else "Mail.ReadWrite offline_access openid profile email",
         }
     else:
         raise MailSourceError(f"credential refresh endpoint is not approved: {path.name}")
