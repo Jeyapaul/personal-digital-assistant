@@ -21,7 +21,7 @@ PROFILES = {
     },
     "management": {
         "gmail": (DATA_DIR / "credentials/gmail-management.json", "https://www.googleapis.com/auth/gmail.modify", {"https://www.googleapis.com/auth/gmail.modify"}),
-        "microsoft": (DATA_DIR / "credentials/microsoft-management.json", "Mail.ReadWrite", {"Mail.ReadWrite", "offline_access", "openid", "profile", "email"}),
+        "microsoft": (DATA_DIR / "credentials/microsoft-management.json", "Mail.ReadWrite", {"Mail.Read", "Mail.ReadWrite", "offline_access", "openid", "profile", "email"}),
     },
 }
 

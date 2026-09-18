@@ -44,7 +44,7 @@ GMAIL_MANAGEMENT_ALLOWED_SCOPES = {GMAIL_MODIFY_SCOPE}
 GRAPH_SCOPE = "Mail.Read"
 GRAPH_MANAGEMENT_SCOPE = "Mail.ReadWrite"
 GRAPH_ALLOWED_SCOPES = {"Mail.Read", "offline_access", "openid", "profile", "email"}
-GRAPH_MANAGEMENT_ALLOWED_SCOPES = {"Mail.ReadWrite", "offline_access", "openid", "profile", "email"}
+GRAPH_MANAGEMENT_ALLOWED_SCOPES = {"Mail.Read", "Mail.ReadWrite", "offline_access", "openid", "profile", "email"}
 
 
 def _ssl_context() -> ssl.SSLContext:

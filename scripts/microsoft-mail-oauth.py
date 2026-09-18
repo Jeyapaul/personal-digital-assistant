@@ -27,11 +27,13 @@ PROFILES = {
         "token_path": CREDENTIAL_DIR / "microsoft.json",
         "required_scope": "Mail.Read",
         "scopes": "Mail.Read offline_access openid profile email",
+        "allowed_scopes": {"Mail.Read", "offline_access", "openid", "profile", "email"},
     },
     "management": {
         "token_path": CREDENTIAL_DIR / "microsoft-management.json",
         "required_scope": "Mail.ReadWrite",
         "scopes": "Mail.ReadWrite offline_access openid profile email",
+        "allowed_scopes": {"Mail.Read", "Mail.ReadWrite", "offline_access", "openid", "profile", "email"},
     },
 }
 TENANT_RE = re.compile(r"^[A-Za-z0-9.-]+$")
@@ -178,7 +180,7 @@ def authenticate(client_id: str, tenant: str, profile_name: str) -> None:
         granted = set(str(result.get("scope", profile["scopes"])).split())
         if not access_token or not refresh_token or profile["required_scope"] not in granted:
             raise SystemExit(f"Microsoft token did not include {profile['required_scope']} and refresh support")
-        if not granted <= set(profile["scopes"].split()):
+        if not granted <= profile["allowed_scopes"]:
             safe_scopes = ", ".join(sorted(granted)) or "(none)"
             raise SystemExit(
                 "Microsoft token contained scopes outside the approved mail-only set; "
