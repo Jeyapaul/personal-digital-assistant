@@ -38,9 +38,13 @@ MAX_PAGES = 10
 # sender/subject/action summarization, not the complete message body.
 MAX_BODY_CHARS = 250
 GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.readonly"
+GMAIL_MODIFY_SCOPE = "https://www.googleapis.com/auth/gmail.modify"
 GMAIL_ALLOWED_SCOPES = {GMAIL_SCOPE}
+GMAIL_MANAGEMENT_ALLOWED_SCOPES = {GMAIL_MODIFY_SCOPE}
 GRAPH_SCOPE = "Mail.Read"
+GRAPH_MANAGEMENT_SCOPE = "Mail.ReadWrite"
 GRAPH_ALLOWED_SCOPES = {"Mail.Read", "offline_access", "openid", "profile"}
+GRAPH_MANAGEMENT_ALLOWED_SCOPES = {"Mail.ReadWrite", "offline_access", "openid", "profile"}
 
 
 def _ssl_context() -> ssl.SSLContext:
@@ -317,7 +321,14 @@ def load_access_token(path: Path, required_scope: str, force_refresh: bool = Fal
     if not isinstance(value, dict):
         raise MailSourceError(f"credential file is invalid: {path.name}")
     granted_scopes = _scope_set(value.get("scopes") or value.get("scope"))
-    allowed_scopes = GMAIL_ALLOWED_SCOPES if required_scope == GMAIL_SCOPE else GRAPH_ALLOWED_SCOPES
+    if required_scope == GMAIL_SCOPE:
+        allowed_scopes = GMAIL_ALLOWED_SCOPES
+    elif required_scope == GMAIL_MODIFY_SCOPE:
+        allowed_scopes = GMAIL_MANAGEMENT_ALLOWED_SCOPES
+    elif required_scope == GRAPH_MANAGEMENT_SCOPE:
+        allowed_scopes = GRAPH_MANAGEMENT_ALLOWED_SCOPES
+    else:
+        allowed_scopes = GRAPH_ALLOWED_SCOPES
     if required_scope not in granted_scopes:
         raise MailSourceError(f"credential file lacks required scope: {path.name}")
     if not granted_scopes <= allowed_scopes:
@@ -346,7 +357,7 @@ def load_access_token(path: Path, required_scope: str, force_refresh: bool = Fal
             "client_id": client_id,
             "refresh_token": refresh_token,
             "grant_type": "refresh_token",
-            "scope": "Mail.Read offline_access openid profile",
+            "scope": "Mail.Read offline_access openid profile" if required_scope == GRAPH_SCOPE else "Mail.ReadWrite offline_access openid profile",
         }
     else:
         raise MailSourceError(f"credential refresh endpoint is not approved: {path.name}")

@@ -23,7 +23,8 @@ import urllib.request
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-SCOPE = "https://www.googleapis.com/auth/gmail.readonly"
+READONLY_SCOPE = "https://www.googleapis.com/auth/gmail.readonly"
+MANAGEMENT_SCOPE = "https://www.googleapis.com/auth/gmail.modify"
 AUTH_HOST = "accounts.google.com"
 TOKEN_HOST = "oauth2.googleapis.com"
 REDIRECT_URI = "http://localhost:1/"
@@ -33,9 +34,27 @@ DATA_DIR = Path(os.environ.get(
 ))
 CREDENTIAL_DIR = DATA_DIR / "credentials"
 CLIENT_PATH = CREDENTIAL_DIR / "google-gmail-client.json"
-TOKEN_PATH = CREDENTIAL_DIR / "gmail.json"
-PENDING_PATH = CREDENTIAL_DIR / "google-gmail-pending.json"
-LAST_URL_PATH = CREDENTIAL_DIR / "google-gmail-last-url.txt"
+PROFILES = {
+    "report": {
+        "scope": READONLY_SCOPE,
+        "token_path": CREDENTIAL_DIR / "gmail.json",
+        "pending_path": CREDENTIAL_DIR / "google-gmail-pending.json",
+        "last_url_path": CREDENTIAL_DIR / "google-gmail-last-url.txt",
+    },
+    "management": {
+        "scope": MANAGEMENT_SCOPE,
+        "token_path": CREDENTIAL_DIR / "gmail-management.json",
+        "pending_path": CREDENTIAL_DIR / "google-gmail-management-pending.json",
+        "last_url_path": CREDENTIAL_DIR / "google-gmail-management-last-url.txt",
+    },
+}
+
+
+def _profile(name: str) -> dict:
+    try:
+        return PROFILES[name]
+    except KeyError as exc:
+        raise SystemExit(f"Unknown Gmail OAuth profile: {name}") from exc
 
 
 def _ssl_context() -> ssl.SSLContext:
@@ -147,7 +166,8 @@ def store_client_secret(path: str) -> None:
     print(f"Google OAuth client stored at {CLIENT_PATH}")
 
 
-def create_auth_url() -> None:
+def create_auth_url(profile_name: str) -> None:
+    profile = _profile(profile_name)
     client_id, _secret, auth_uri, _token_uri = _client(_load_json(CLIENT_PATH))
     verifier = base64.urlsafe_b64encode(secrets.token_bytes(64)).rstrip(b"=").decode()
     challenge = base64.urlsafe_b64encode(
@@ -158,7 +178,7 @@ def create_auth_url() -> None:
         "client_id": client_id,
         "redirect_uri": REDIRECT_URI,
         "response_type": "code",
-        "scope": SCOPE,
+        "scope": profile["scope"],
         "access_type": "offline",
         "prompt": "consent",
         "state": state,
@@ -166,13 +186,14 @@ def create_auth_url() -> None:
         "code_challenge_method": "S256",
     })
     url = f"{auth_uri}?{query}"
-    _private_json(PENDING_PATH, {
+    _private_json(profile["pending_path"], {
         "client_id": client_id,
         "state": state,
         "code_verifier": verifier,
         "redirect_uri": REDIRECT_URI,
+        "profile": profile_name,
     })
-    _private_write(LAST_URL_PATH, url + "\n")
+    _private_write(profile["last_url_path"], url + "\n")
     print(url)
 
 
@@ -187,8 +208,9 @@ def _code_from_value(value: str) -> tuple[str, str | None]:
     return query["code"][0], (query.get("state") or [None])[0]
 
 
-def exchange(value: str) -> None:
-    pending = _load_json(PENDING_PATH)
+def exchange(value: str, profile_name: str) -> None:
+    profile = _profile(profile_name)
+    pending = _load_json(profile["pending_path"])
     client = _load_json(CLIENT_PATH)
     client_id, client_secret, _auth_uri, token_uri = _client(client)
     if pending.get("client_id") != client_id:
@@ -208,9 +230,9 @@ def exchange(value: str) -> None:
     refresh_token = response.get("refresh_token")
     if not access_token or not refresh_token:
         raise SystemExit("Google did not return both access and refresh tokens; rerun --auth-url with consent")
-    granted = set(str(response.get("scope", SCOPE)).split())
-    if granted != {SCOPE}:
-        raise SystemExit("Google token contained scopes outside Gmail read-only access")
+    granted = set(str(response.get("scope", profile["scope"])).split())
+    if granted != {profile["scope"]}:
+        raise SystemExit(f"Google token contained scopes outside the {profile_name} Gmail profile")
     expiry = datetime.now(timezone.utc) + timedelta(seconds=int(response.get("expires_in", 3600)))
     token = {
         "type": "authorized_user",
@@ -223,23 +245,27 @@ def exchange(value: str) -> None:
         "expiry": expiry.isoformat(),
         "scopes": sorted(granted),
     }
-    _private_json(TOKEN_PATH, token)
-    PENDING_PATH.unlink(missing_ok=True)
-    print(f"Gmail read-only credentials stored at {TOKEN_PATH}")
+    token_path = profile["token_path"]
+    _private_json(token_path, token)
+    profile["pending_path"].unlink(missing_ok=True)
+    label = "read-only" if profile_name == "report" else "management"
+    print(f"Gmail {label} credentials stored at {token_path}")
 
 
-def check() -> None:
-    payload = _load_json(TOKEN_PATH)
+def check(profile_name: str) -> None:
+    profile = _profile(profile_name)
+    payload = _load_json(profile["token_path"])
     scopes = set(payload.get("scopes") or str(payload.get("scope", "")).split())
-    if SCOPE not in scopes:
-        raise SystemExit("Gmail credential is missing the required read-only scope")
+    if profile["scope"] not in scopes:
+        raise SystemExit(f"Gmail {profile_name} credential is missing its required scope")
     if not payload.get("refresh_token"):
         raise SystemExit("Gmail credential has no refresh token")
-    print(f"OK: Gmail read-only credential is valid at {TOKEN_PATH}")
+    print(f"OK: Gmail {profile_name} credential is valid at {profile['token_path']}")
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
+    parser.add_argument("--profile", choices=sorted(PROFILES), default="report")
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--client-secret")
     group.add_argument("--auth-url", action="store_true")
@@ -249,11 +275,11 @@ def main() -> int:
     if args.client_secret:
         store_client_secret(args.client_secret)
     elif args.auth_url:
-        create_auth_url()
+        create_auth_url(args.profile)
     elif args.auth_code:
-        exchange(args.auth_code)
+        exchange(args.auth_code, args.profile)
     else:
-        check()
+        check(args.profile)
     return 0
 
 

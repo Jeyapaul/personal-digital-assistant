@@ -64,7 +64,28 @@ The resulting file is:
 .../credentials/gmail.json
 ```
 
-The file contains a refresh token and is mode `0600`. In Google OAuth Testing
+The file contains a refresh token and is mode `0600`. Keep this report
+credential read-only. Management uses a separate credential so reporting
+continues to have least privilege if management access is revoked.
+
+After adding Gmail Modify to the same OAuth application, create the separate
+management credential:
+
+```bash
+python3 scripts/google-gmail-oauth.py --profile management --auth-url
+python3 scripts/google-gmail-oauth.py \
+  --profile management \
+  --auth-code 'PASTE_THE_COMPLETE_REDIRECT_URL_HERE'
+python3 scripts/google-gmail-oauth.py --profile management --check
+python3 scripts/validate-mail-credentials.py \
+  --source gmail --profile management
+```
+
+Approve Gmail Modify in the browser flow. This creates
+`credentials/gmail-management.json`; do not replace `credentials/gmail.json`.
+Both files remain mode `0600`.
+
+In Google OAuth Testing
 status, refresh tokens for sensitive scopes can expire after a limited period;
 for a durable unattended deployment, publish the app or have the Workspace
 administrator approve it according to the organization's policy.
@@ -91,17 +112,24 @@ Microsoft 365 account. Use the personal-account tenant and account type.
    flows** to **Yes**. Save the change.
 8. Open **API permissions → Add a permission → Microsoft Graph → Delegated
    permissions**.
-9. Add exactly `Mail.Read`. Do not add `Mail.ReadWrite`, `Mail.Send`,
-   `User.Read`, calendar, contacts, files, or directory permissions.
+9. Keep `Mail.Read` for the report credential and add `Mail.ReadWrite` for
+   the separate management credential. Do not add `Mail.Send`, `User.Read`,
+   calendar, contacts, files, or directory permissions.
 10. Do not create a client secret. Public-client device flow does not use one.
 11. Admin consent is normally not applicable to a personal Hotmail account.
     If the portal presents an administrator-consent requirement, stop and
     resolve that requirement rather than granting broader permissions.
 
-The OAuth script requests these protocol scopes in addition to `Mail.Read`:
+The report profile requests these protocol scopes:
 
 ```text
 Mail.Read offline_access openid profile
+```
+
+The management profile requests:
+
+```text
+Mail.ReadWrite offline_access openid profile
 ```
 
 `offline_access` is required for unattended refresh-token operation. The script
@@ -132,16 +160,36 @@ python3 scripts/microsoft-mail-oauth.py \
 
 The command prints a Microsoft verification URL and a one-time device code.
 Open the URL in a browser, enter the code, sign in with the Hotmail account,
-review the consent screen, and approve `Mail.Read`. Keep the terminal running;
+review the consent screen, and approve the requested profile permission.
+Keep the terminal running;
 it polls Microsoft until consent completes.
 
-The script stores the refreshable credential at:
+The report profile stores the refreshable credential at:
 
 ```text
 $PERSONAL_ASSISTANT_DATA_DIR/credentials/microsoft.json
 ```
 
-It writes the file with mode `0600` and never prints the token.
+For the separate management profile, run:
+
+```bash
+python3 scripts/microsoft-mail-oauth.py \
+  --profile management \
+  --client-id 'YOUR_APPLICATION_CLIENT_ID' \
+  --tenant consumers \
+  --auth
+python3 scripts/microsoft-mail-oauth.py --profile management --check
+python3 scripts/validate-mail-credentials.py \
+  --source microsoft --profile management
+```
+
+This creates:
+
+```text
+$PERSONAL_ASSISTANT_DATA_DIR/credentials/microsoft-management.json
+```
+
+Both files are mode `0600` and tokens are never printed.
 
 Validate the stored Microsoft file without printing tokens:
 
@@ -166,8 +214,8 @@ python3 scripts/validate-mail-credentials.py --source gmail
 
 ## 4. Enable Microsoft in the deployed assistant
 
-Do not enable Microsoft until the OAuth and validation commands above pass.
-The running project is Gmail-only by default.
+Do not enable management actions until the OAuth and validation commands
+above pass. Reporting and new-mail review remain read-only.
 
 Rebuild the project image and Docker egress allowlist because Microsoft
 requires both `graph.microsoft.com` and `login.microsoftonline.com`:

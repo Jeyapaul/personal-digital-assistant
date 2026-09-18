@@ -14,9 +14,15 @@ DATA_DIR = Path(os.environ.get(
     "PERSONAL_ASSISTANT_DATA_DIR",
     str(Path.home() / ".hermes/personal-assistant-data"),
 ))
-FILES = {
-    "gmail": (DATA_DIR / "credentials/gmail.json", "https://www.googleapis.com/auth/gmail.readonly", {"https://www.googleapis.com/auth/gmail.readonly"}),
-    "microsoft": (DATA_DIR / "credentials/microsoft.json", "Mail.Read", {"Mail.Read", "offline_access", "openid", "profile"}),
+PROFILES = {
+    "report": {
+        "gmail": (DATA_DIR / "credentials/gmail.json", "https://www.googleapis.com/auth/gmail.readonly", {"https://www.googleapis.com/auth/gmail.readonly"}),
+        "microsoft": (DATA_DIR / "credentials/microsoft.json", "Mail.Read", {"Mail.Read", "offline_access", "openid", "profile"}),
+    },
+    "management": {
+        "gmail": (DATA_DIR / "credentials/gmail-management.json", "https://www.googleapis.com/auth/gmail.modify", {"https://www.googleapis.com/auth/gmail.modify"}),
+        "microsoft": (DATA_DIR / "credentials/microsoft-management.json", "Mail.ReadWrite", {"Mail.ReadWrite", "offline_access", "openid", "profile"}),
+    },
 }
 
 
@@ -54,8 +60,10 @@ def check(name: str, path: Path, required_scope: str, allowed_scopes: set[str]) 
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--source", choices=["gmail", "microsoft", "all"], default="gmail")
+parser.add_argument("--profile", choices=sorted(PROFILES), default="report")
 args = parser.parse_args()
-selected = FILES if args.source == "all" else {args.source: FILES[args.source]}
+files = PROFILES[args.profile]
+selected = files if args.source == "all" else {args.source: files[args.source]}
 results = [check(name, path, scope, allowed) for name, (path, scope, allowed) in selected.items()]
 print(json.dumps(results, indent=2))
 sys.exit(0 if all(item["ok"] for item in results) else 1)

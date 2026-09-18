@@ -22,10 +22,26 @@ DATA_DIR = Path(os.environ.get(
     str(Path.home() / ".hermes/personal-assistant-data"),
 ))
 CREDENTIAL_DIR = DATA_DIR / "credentials"
-TOKEN_PATH = CREDENTIAL_DIR / "microsoft.json"
-REQUIRED_SCOPE = "Mail.Read"
-SCOPES = "Mail.Read offline_access openid profile"
+PROFILES = {
+    "report": {
+        "token_path": CREDENTIAL_DIR / "microsoft.json",
+        "required_scope": "Mail.Read",
+        "scopes": "Mail.Read offline_access openid profile",
+    },
+    "management": {
+        "token_path": CREDENTIAL_DIR / "microsoft-management.json",
+        "required_scope": "Mail.ReadWrite",
+        "scopes": "Mail.ReadWrite offline_access openid profile",
+    },
+}
 TENANT_RE = re.compile(r"^[A-Za-z0-9.-]+$")
+
+
+def _profile(name: str) -> dict:
+    try:
+        return PROFILES[name]
+    except KeyError as exc:
+        raise SystemExit(f"Unknown Microsoft OAuth profile: {name}") from exc
 
 
 def _ssl_context() -> ssl.SSLContext:
@@ -131,11 +147,12 @@ def _endpoints(tenant: str) -> tuple[str, str]:
     return f"{base}/devicecode", f"{base}/token"
 
 
-def authenticate(client_id: str, tenant: str) -> None:
+def authenticate(client_id: str, tenant: str, profile_name: str) -> None:
+    profile = _profile(profile_name)
     if not re.fullmatch(r"[A-Fa-f0-9-]{10,}", client_id):
         raise SystemExit("Client ID does not look like a Microsoft application ID")
     device_url, token_url = _endpoints(tenant)
-    device = _post_form(device_url, {"client_id": client_id, "scope": SCOPES})
+    device = _post_form(device_url, {"client_id": client_id, "scope": profile["scopes"]})
     if device.get("error"):
         raise SystemExit(f"Microsoft device-code error: {device['error']}")
     print(device.get("message") or f"Open {device.get('verification_uri')} and enter {device.get('user_code')}")
@@ -158,13 +175,14 @@ def authenticate(client_id: str, tenant: str) -> None:
             raise SystemExit(f"Microsoft authorization failed: {error}")
         access_token = result.get("access_token")
         refresh_token = result.get("refresh_token")
-        granted = set(str(result.get("scope", SCOPES)).split())
-        if not access_token or not refresh_token or REQUIRED_SCOPE not in granted:
-            raise SystemExit("Microsoft token did not include Mail.Read and refresh support")
-        if not granted <= set(SCOPES.split()):
+        granted = set(str(result.get("scope", profile["scopes"])).split())
+        if not access_token or not refresh_token or profile["required_scope"] not in granted:
+            raise SystemExit(f"Microsoft token did not include {profile['required_scope']} and refresh support")
+        if not granted <= set(profile["scopes"].split()):
             raise SystemExit("Microsoft token contained scopes outside the approved mail-only set")
         expiry = datetime.now(timezone.utc) + timedelta(seconds=int(result.get("expires_in", 3600)))
-        _private_json(TOKEN_PATH, {
+        token_path = profile["token_path"]
+        _private_json(token_path, {
             "access_token": str(access_token),
             "token": str(access_token),
             "refresh_token": str(refresh_token),
@@ -174,23 +192,25 @@ def authenticate(client_id: str, tenant: str) -> None:
             "expiry": expiry.isoformat(),
             "scopes": sorted(granted),
         })
-        print(f"Microsoft Mail.Read credentials stored at {TOKEN_PATH}")
+        print(f"Microsoft {profile_name} credentials stored at {token_path}")
         return
     raise SystemExit("Microsoft device code expired before authorization completed")
 
 
-def check() -> None:
-    payload = _load_json(TOKEN_PATH)
+def check(profile_name: str) -> None:
+    profile = _profile(profile_name)
+    payload = _load_json(profile["token_path"])
     scopes = set(payload.get("scopes") or str(payload.get("scope", "")).split())
-    if REQUIRED_SCOPE not in scopes:
-        raise SystemExit("Microsoft credential is missing Mail.Read")
+    if profile["required_scope"] not in scopes:
+        raise SystemExit(f"Microsoft {profile_name} credential is missing {profile['required_scope']}")
     if not payload.get("refresh_token"):
         raise SystemExit("Microsoft credential has no refresh token")
-    print(f"OK: Microsoft Mail.Read credential is valid at {TOKEN_PATH}")
+    print(f"OK: Microsoft {profile_name} credential is valid at {profile['token_path']}")
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
+    parser.add_argument("--profile", choices=sorted(PROFILES), default="report")
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--auth", action="store_true")
     group.add_argument("--check", action="store_true")
@@ -200,9 +220,9 @@ def main() -> int:
     if args.auth:
         if not args.client_id:
             parser.error("--client-id is required with --auth")
-        authenticate(args.client_id, args.tenant)
+        authenticate(args.client_id, args.tenant, args.profile)
     else:
-        check()
+        check(args.profile)
     return 0
 
 
