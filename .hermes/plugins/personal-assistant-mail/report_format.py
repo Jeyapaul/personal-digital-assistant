@@ -52,14 +52,26 @@ def format_message(message: Dict[str, Any], number: int) -> str:
     subject = _inline(message.get("subject") or "(no subject)")
     source = _source_name(message.get("source"))
     status = "Unread at collection" if message.get("unread") else "Read at collection"
+    category = _inline(message.get("management_category"))
+    actions = message.get("proposed_actions") or []
+    action_text = ", ".join(_inline(item, 120) for item in actions)
+    metadata = [
+        f"### {number:02d} · {source} · {_timestamp(message.get('received_at_ist'))}",
+        f"**From:** {sender}",
+        f"**Subject:** {subject}",
+        f"**Status:** {status}",
+    ]
+    if category:
+        metadata.append(f"**Category proposal:** {category}")
+    if action_text:
+        metadata.append(f"**Proposed actions:** {action_text}")
+    metadata.extend([
+        f"**Attachments:** {attachment_text} (names only; bytes not downloaded)",
+        "",
+    ])
     return "\n".join(
-        [
-            f"### {number:02d} · {source} · {_timestamp(message.get('received_at_ist'))}",
-            f"**From:** {sender}",
-            f"**Subject:** {subject}",
-            f"**Status:** {status}",
-            f"**Attachments:** {attachment_text} (names only; bytes not downloaded)",
-            "",
+        metadata + [
+
             "**Untrusted content excerpt:**",
             _quoted_excerpt(message.get("body")),
         ]

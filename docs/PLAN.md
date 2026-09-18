@@ -23,9 +23,10 @@ scheduled job.
 1. **Feasibility:** local Ollama model, project plugin, fixed stub, and
    prompt-injection tests. Complete.
 2. **Read-only mail:** dedicated narrow Google OAuth, Microsoft Graph device
-   OAuth, fixed previous-IST-day collection, refresh-token support, SQLite
-   run state, and offline contract tests. OAuth bootstrap implementation is
-   included; live consent is performed by the operator.
+   OAuth, fixed previous-IST-day collection, incremental new-mail cursor review,
+   refresh-token support, SQLite run state, and offline contract tests. OAuth
+   bootstrap implementation is included; live consent is performed by the
+   operator. New-mail mutation remains disabled until a later approved phase.
 3. **Delivery:** restricted Discord DM delivery and Hermes cron provisioning.
    Gmail-only mode is supported now; Microsoft remains an optional later
    source.

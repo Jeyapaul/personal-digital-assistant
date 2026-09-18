@@ -49,14 +49,36 @@ class Phase2MailContractTests(unittest.TestCase):
         os.environ.pop("PDA_FIXTURE_SCENARIO", None)
         os.environ.pop("PERSONAL_ASSISTANT_DATA_DIR", None)
 
+    def test_new_mail_review_initializes_without_historical_sweep(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            os.environ["PDA_MAIL_MODE"] = "fixture"
+            os.environ["PDA_FIXTURE_SCENARIO"] = "normal"
+            os.environ["PDA_MAIL_SOURCES"] = "gmail"
+            os.environ["PDA_NEW_MAIL_REVIEW"] = "true"
+            os.environ["PERSONAL_ASSISTANT_DATA_DIR"] = tmp
+            first = json.loads(plugin.handle_new_mail_review({}))
+            self.assertTrue(first["success"])
+            self.assertEqual(first["initialized_sources"], ["gmail"])
+            self.assertEqual(first["message_count"], 0)
+        for key in (
+            "PDA_MAIL_MODE", "PDA_FIXTURE_SCENARIO", "PDA_MAIL_SOURCES",
+            "PDA_NEW_MAIL_REVIEW", "PERSONAL_ASSISTANT_DATA_DIR",
+        ):
+            os.environ.pop(key, None)
+
     def test_model_cannot_supply_query_arguments(self) -> None:
         result = json.loads(plugin.handle_mail_report({"query": "all mail"}))
+        self.assertFalse(result["success"])
+        self.assertIn("no arguments", result["error"])
+        result = json.loads(plugin.handle_new_mail_review({"source": "gmail"}))
         self.assertFalse(result["success"])
         self.assertIn("no arguments", result["error"])
 
     def test_schema_has_no_model_controlled_parameters(self) -> None:
         self.assertEqual(plugin.MAIL_REPORT_SCHEMA["parameters"]["properties"], {})
         self.assertFalse(plugin.MAIL_REPORT_SCHEMA["parameters"]["additionalProperties"])
+        self.assertEqual(plugin.NEW_MAIL_REVIEW_SCHEMA["parameters"]["properties"], {})
+        self.assertFalse(plugin.NEW_MAIL_REVIEW_SCHEMA["parameters"]["additionalProperties"])
 
 
 if __name__ == "__main__":

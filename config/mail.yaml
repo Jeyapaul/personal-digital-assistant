@@ -32,3 +32,11 @@ policy:
     - graph.microsoft.com
   scheduled_connector: fixed_api_adapters
   himalaya_enabled: false
+
+management:
+  new_mail_review_enabled: true
+  historical_backfill_enabled: false
+  initial_cursor: deployment_time
+  max_new_messages_per_source: 15
+  mutation_enabled: false
+  mark_reported_read_after_discord_delivery: false

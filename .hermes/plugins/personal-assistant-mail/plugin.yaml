@@ -1,4 +1,4 @@
 name: personal-assistant-mail
 version: 0.2.0
-description: "Phase 2 fixed read-only Gmail and Microsoft Graph mail report capability."
+description: "Read-only Gmail and Microsoft Graph reporting plus bounded incremental new-mail review proposals."
 author: "Personal Digital Assistant"

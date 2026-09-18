@@ -4,7 +4,7 @@ Hermes-first implementation of a locked-down personal assistant.
 
 ## Current scope
 
-The project provides a Gmail-only Discord assistant with a hardened Docker
+The project provides a Gmail/Microsoft Discord assistant with a hardened Docker
 deployment and macOS launchd supervision. The default offline fixture remains
 available for testing. Microsoft Graph is disabled by default.
 
@@ -71,16 +71,21 @@ launcher uses the project plugin with:
 
 ## Phase 2 mail policy
 
-The fixed operation always selects the previous IST calendar day, unread
-messages only, and never marks messages read. It uses only these API hosts:
+The fixed report operation always selects the previous IST calendar day and
+unread messages only. The separate `mail_new_review` operation reviews only
+messages received after its per-provider cursor, performs no provider
+mutation, and is initialized at deployment time so it does not sweep history.
+Both operations preserve the current read state. They use only these API hosts:
 
 - `gmail.googleapis.com` with Gmail read-only scope
 - `graph.microsoft.com` with Microsoft `Mail.Read`
 
 Attachment names may be collected as metadata; attachment bytes are never
 requested. Message bodies are returned as untrusted data and are not persisted
-in SQLite. The model-facing schema has no arguments, so the model cannot choose
-queries, dates, folders, recipients, or URLs.
+in SQLite. The model-facing schemas have no arguments, so the model cannot choose
+queries, dates, folders, recipients, cursors, or URLs. New-mail review returns
+bounded category and action proposals only; archive, unsubscribe, spam, delete,
+and read-state mutation remain disabled in this phase.
 
 Provider setup is documented in [`docs/PROVIDER-SETUP.md`](docs/PROVIDER-SETUP.md).
 Use the project-local OAuth scripts rather than the broad Google Workspace
@@ -124,7 +129,7 @@ PDA_MAIL_MODE=fixture PDA_FIXTURE_SCENARIO=prompt_injection \
 
 Discord setup instructions are in [`docs/DISCORD-SETUP.md`](docs/DISCORD-SETUP.md).
 The setup requires your Discord bot token and your numeric Discord user ID.
-Microsoft remains disabled while the assistant operates with Gmail-only collection.
+Microsoft can be enabled after its delegated read-only OAuth flow is completed.
 
 The activation steps are:
 
@@ -137,10 +142,9 @@ python3 scripts/discord-setup.py \
 ```
 
 The cron job uses Hermes' authoritative `0 10 * * *` schedule in
-`Asia/Kolkata` and delivers only to the resolved DM channel. Microsoft is
-currently disabled, so reports are Gmail-only. launchd only starts and
-supervises Docker/Hermes; it does not send the report or create a second
-scheduler.
+`Asia/Kolkata` and delivers only to the resolved DM channel. The current source selection is controlled by `PDA_MAIL_SOURCES` and may
+include both Gmail and Microsoft. launchd only starts and supervises
+Docker/Hermes; it does not send the report or create a second scheduler.
 
 ## Phase 4 Docker deployment
 

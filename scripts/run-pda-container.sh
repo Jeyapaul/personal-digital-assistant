@@ -8,6 +8,7 @@ CONTAINER=${PDA_CONTAINER:-personal-assistant-hermes}
 INTERNAL_NET=${PDA_INTERNAL_NETWORK:-personal-assistant-internal}
 PROXY=${PDA_EGRESS_CONTAINER:-personal-assistant-egress}
 MAIL_SOURCES=${PDA_MAIL_SOURCES:-gmail}
+NEW_MAIL_REVIEW=${PDA_NEW_MAIL_REVIEW:-true}
 MODEL=${PDA_MODEL:-qwen3.8-pda:64k}
 case "$MODEL" in
   (*[!A-Za-z0-9._:-]*) echo "Invalid PDA_MODEL" >&2; exit 2 ;;
@@ -84,6 +85,7 @@ docker run -d \
   -e DISCORD_PROXY=http://egress-proxy:3128 \
   -e PERSONAL_ASSISTANT_DATA_DIR=/data \
   -e PDA_MAIL_SOURCES="$MAIL_SOURCES" \
+  -e PDA_NEW_MAIL_REVIEW="$NEW_MAIL_REVIEW" \
   "$IMAGE"
 
 echo "Started $CONTAINER"

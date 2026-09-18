@@ -176,8 +176,10 @@ def _gmail_parts(payload: Dict[str, Any]) -> Tuple[str, List[str]]:
     return text, sorted(set(attachment_names))
 
 
-def _parse_gmail_message(message: Dict[str, Any], window: DateWindow) -> Optional[Dict[str, Any]]:
-    if "UNREAD" not in (message.get("labelIds") or []):
+def _parse_gmail_message(
+    message: Dict[str, Any], window: DateWindow, unread_only: bool = True
+) -> Optional[Dict[str, Any]]:
+    if unread_only and "UNREAD" not in (message.get("labelIds") or []):
         return None
     timestamp = message.get("internalDate")
     try:
@@ -199,7 +201,7 @@ def _parse_gmail_message(message: Dict[str, Any], window: DateWindow) -> Optiona
         "sender_address": sender_address,
         "subject": _header(headers, "Subject")[:500],
         "received_at_ist": received.astimezone(IST).isoformat(),
-        "unread": True,
+        "unread": "UNREAD" in (message.get("labelIds") or []),
         "body": body,
         "attachment_names": attachment_names,
     }
@@ -366,7 +368,9 @@ class GmailSource:
     def __init__(self, token_file: Path) -> None:
         self.token_file = token_file
 
-    def collect(self, window: DateWindow) -> List[Dict[str, Any]]:
+    def collect(
+        self, window: DateWindow, unread_only: bool = True, inbox_only: bool = False
+    ) -> List[Dict[str, Any]]:
         token = load_access_token(self.token_file, GMAIL_SCOPE)
         messages: List[Dict[str, Any]] = []
         page_token: Optional[str] = None
@@ -376,8 +380,11 @@ class GmailSource:
         # on each side, then enforce the exact UTC interval below.
         query_start = target_date - dt.timedelta(days=1)
         query_end = target_date + dt.timedelta(days=2)
+        unread_clause = "is:unread " if unread_only else ""
+        inbox_clause = "in:inbox " if inbox_only else ""
         gmail_query = (
-            f"is:unread after:{query_start.isoformat().replace('-', '/')} "
+            f"{inbox_clause}{unread_clause}"
+            f"after:{query_start.isoformat().replace('-', '/')} "
             f"before:{query_end.isoformat().replace('-', '/')}"
         )
         for _ in range(MAX_PAGES):
@@ -400,7 +407,7 @@ class GmailSource:
                     GMAIL_HOST,
                     {"format": "full"},
                 )
-                parsed = _parse_gmail_message(detail, window)
+                parsed = _parse_gmail_message(detail, window, unread_only=unread_only)
                 if parsed:
                     messages.append(parsed)
                 if len(messages) >= MAX_MESSAGES:
@@ -415,14 +422,17 @@ class GraphSource:
     def __init__(self, token_file: Path) -> None:
         self.token_file = token_file
 
-    def collect(self, window: DateWindow) -> List[Dict[str, Any]]:
+    def collect(
+        self, window: DateWindow, unread_only: bool = True, inbox_only: bool = True
+    ) -> List[Dict[str, Any]]:
         token = load_access_token(self.token_file, GRAPH_SCOPE)
         params = {
             "$filter": (
-                "isRead eq false and receivedDateTime ge "
-                f"{window.start_utc.isoformat().replace('+00:00', 'Z')} and "
-                "receivedDateTime lt "
-                f"{window.end_utc.isoformat().replace('+00:00', 'Z')}"
+                ("isRead eq false and " if unread_only else "")
+                + "receivedDateTime ge "
+                + f"{window.start_utc.isoformat().replace('+00:00', 'Z')} and "
+                + "receivedDateTime lt "
+                + f"{window.end_utc.isoformat().replace('+00:00', 'Z')}"
             ),
             "$orderby": "receivedDateTime asc",
             "$select": "id,from,subject,receivedDateTime,isRead,body,hasAttachments",
@@ -433,7 +443,7 @@ class GraphSource:
         for _ in range(MAX_PAGES):
             page = _get_json(url, token, GRAPH_HOST, params if "?" not in url else None)
             for item in page.get("value") or []:
-                parsed = self._parse_message(item, window, token)
+                parsed = self._parse_message(item, window, token, unread_only=unread_only)
                 if parsed:
                     messages.append(parsed)
                 if len(messages) >= MAX_MESSAGES:
@@ -447,10 +457,11 @@ class GraphSource:
         return messages
 
     def _parse_message(
-        self, item: Dict[str, Any], window: DateWindow, token: str
+        self, item: Dict[str, Any], window: DateWindow, token: str,
+        unread_only: bool = True,
     ) -> Optional[Dict[str, Any]]:
         received = _parse_datetime(str(item.get("receivedDateTime", "")))
-        if bool(item.get("isRead", True)) or not _in_window(received, window):
+        if (unread_only and bool(item.get("isRead", True))) or not _in_window(received, window):
             return None
         sender_data = item.get("from") or {}
         sender = sender_data.get("emailAddress") or {}
@@ -480,7 +491,7 @@ class GraphSource:
             "sender_address": str(sender.get("address") or ""),
             "subject": str(item.get("subject") or "")[:500],
             "received_at_ist": received.astimezone(IST).isoformat(),
-            "unread": True,
+            "unread": not bool(item.get("isRead", True)),
             "body": _body_text(str(body_data.get("content") or ""), str(body_data.get("contentType") or "")),
             "attachment_names": attachment_names,
         }
@@ -541,6 +552,42 @@ def collect_sources(window: DateWindow, data_dir: Path) -> Tuple[List[Dict[str, 
             errors[name] = str(exc)
     all_messages.sort(key=lambda item: (item.get("received_at_ist", ""), item.get("source", ""), item.get("id", "")))
     return all_messages[:MAX_MESSAGES], errors
+
+
+def collect_sources_since(
+    start_utc: dt.datetime,
+    end_utc: dt.datetime,
+    data_dir: Path,
+    only_sources: Optional[set[str]] = None,
+) -> Tuple[Dict[str, List[Dict[str, Any]]], Dict[str, str]]:
+    """Collect inbox messages in a fixed cursor interval without mutations."""
+    window = DateWindow(
+        date_ist=start_utc.astimezone(IST).date().isoformat(),
+        start_utc=start_utc.astimezone(UTC),
+        end_utc=end_utc.astimezone(UTC),
+    )
+    gmail_file = Path(os.environ.get("PDA_GMAIL_TOKEN_FILE", data_dir / "credentials/gmail.json"))
+    graph_file = Path(os.environ.get("PDA_MICROSOFT_TOKEN_FILE", data_dir / "credentials/microsoft.json"))
+    requested_sources = {
+        item.strip().lower()
+        for item in os.environ.get("PDA_MAIL_SOURCES", "gmail").split(",")
+        if item.strip()
+    }
+    if only_sources is not None:
+        requested_sources &= set(only_sources)
+    sources: List[Tuple[str, Any]] = []
+    if "gmail" in requested_sources:
+        sources.append(("gmail", GmailSource(gmail_file)))
+    if "microsoft" in requested_sources:
+        sources.append(("microsoft", GraphSource(graph_file)))
+    collected: Dict[str, List[Dict[str, Any]]] = {}
+    errors: Dict[str, str] = {}
+    for name, source in sources:
+        try:
+            collected[name] = source.collect(window, unread_only=False, inbox_only=True)
+        except MailSourceError as exc:
+            errors[name] = str(exc)
+    return collected, errors
 
 
 def open_state(data_dir: Path) -> sqlite3.Connection:
