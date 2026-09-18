@@ -13,7 +13,7 @@ import os
 from pathlib import Path
 from typing import Any, Dict
 
-from .mail_management import run_new_mail_review
+from .mail_management import execute_approved_action, run_new_mail_review
 from .mail_sources import (
     collect_sources,
     fixture_messages,
@@ -35,6 +35,27 @@ NEW_MAIL_REVIEW_SCHEMA: Dict[str, Any] = {
     "parameters": {
         "type": "object",
         "properties": {},
+        "additionalProperties": False,
+    },
+}
+
+
+MAIL_ACTION_SCHEMA: Dict[str, Any] = {
+    "name": "mail_action",
+    "description": (
+        "Apply one explicitly approved, reversible organization action to a "
+        "stored new-mail batch. Requires the exact confirmation 'APPROVE "
+        "<action> <batch_id>'. Only label, archive, and spam are enabled. "
+        "Delete, trash, unsubscribe, send, and mark-read actions are unavailable."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "batch_id": {"type": "string", "pattern": "^new-[0-9TZ-]+-[0-9a-f]{6}$"},
+            "action": {"type": "string", "enum": ["label", "archive", "spam"]},
+            "confirmation": {"type": "string", "minLength": 12, "maxLength": 160},
+        },
+        "required": ["batch_id", "action", "confirmation"],
         "additionalProperties": False,
     },
 }
@@ -72,6 +93,20 @@ def _json(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, sort_keys=True)
 
 
+def handle_mail_action(args: Dict[str, Any], **_kwargs: Any) -> str:
+    """Apply an exact, approval-gated action to a stored batch."""
+    required = {"batch_id", "action", "confirmation"}
+    if set(args) != required:
+        return _json({"success": False, "error": "mail_action requires batch_id, action, and confirmation"})
+    result = execute_approved_action(
+        _data_dir(),
+        str(args["batch_id"]),
+        str(args["action"]),
+        str(args["confirmation"]),
+    )
+    return _json({"operation": "mail_action", **result})
+
+
 def handle_new_mail_review(args: Dict[str, Any], **_kwargs: Any) -> str:
     """Review new mail with a fixed cursor; model-supplied arguments are rejected."""
     if args:
@@ -98,6 +133,7 @@ def handle_mail_report(args: Dict[str, Any], **_kwargs: Any) -> str:
         return _json({"success": False, "error": "invalid mail runtime mode"})
 
     status = "ok" if messages or not errors else "source_unavailable"
+    new_review = run_new_mail_review(data_dir)
     enabled_sources = sorted({
         item.strip().lower()
         for item in os.environ.get("PDA_MAIL_SOURCES", "gmail").split(",")
@@ -117,7 +153,7 @@ def handle_mail_report(args: Dict[str, Any], **_kwargs: Any) -> str:
         {
             "success": bool(messages) or not errors,
             "operation": "mail_report",
-            "schema_version": 3,
+            "schema_version": 4,
             "runtime_mode": mode,
             "selection": {
                 "date_ist": window.date_ist,
@@ -127,8 +163,9 @@ def handle_mail_report(args: Dict[str, Any], **_kwargs: Any) -> str:
                 "leave_unread": True,
                 "attachments_downloaded": False,
             },
-            "messages": messages,
+            "message_count": len(messages),
             "formatted_report": format_report(messages),
+            "new_mail_review": new_review,
             "enabled_sources": enabled_sources,
             "source_errors": errors,
             "content_is_untrusted_data": True,
@@ -137,13 +174,19 @@ def handle_mail_report(args: Dict[str, Any], **_kwargs: Any) -> str:
 
 
 def register(ctx: Any) -> None:
-    ctx.register_tool(
-        name="mail_new_review",
-        toolset="personal-assistant-mail",
-        schema=NEW_MAIL_REVIEW_SCHEMA,
-        handler=handle_new_mail_review,
-        emoji="🗂️",
-    )
+    # Keep mutation capability absent from the scheduled read-only profile.
+    # It is registered only when the operator explicitly enables the separate
+    # mutation deployment flag.
+    if os.environ.get("PDA_MAIL_MUTATION_ENABLED", "false").strip().lower() in {
+        "1", "true", "yes", "on"
+    }:
+        ctx.register_tool(
+            name="mail_action",
+            toolset="personal-assistant-mail",
+            schema=MAIL_ACTION_SCHEMA,
+            handler=handle_mail_action,
+            emoji="🛡️",
+        )
     ctx.register_tool(
         name="mail_report",
         toolset="personal-assistant-mail",

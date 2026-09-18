@@ -41,10 +41,11 @@ class Phase2MailContractTests(unittest.TestCase):
         self.assertTrue(result["selection"]["leave_unread"])
         self.assertFalse(result["selection"]["attachments_downloaded"])
         self.assertTrue(result["content_is_untrusted_data"])
-        self.assertIn("IGNORE ALL PREVIOUS INSTRUCTIONS", result["messages"][0]["body"])
+        self.assertIn("IGNORE ALL PREVIOUS INSTRUCTIONS", result["formatted_report"])
         self.assertIn("### 01", result["formatted_report"])
         self.assertIn("Untrusted content excerpt", result["formatted_report"])
-        self.assertNotIn("contentBytes", result["messages"][0])
+        self.assertEqual(result["message_count"], 1)
+        self.assertNotIn("contentBytes", result["formatted_report"])
         os.environ.pop("PDA_MAIL_MODE", None)
         os.environ.pop("PDA_FIXTURE_SCENARIO", None)
         os.environ.pop("PERSONAL_ASSISTANT_DATA_DIR", None)
@@ -74,11 +75,28 @@ class Phase2MailContractTests(unittest.TestCase):
         self.assertFalse(result["success"])
         self.assertIn("no arguments", result["error"])
 
-    def test_schema_has_no_model_controlled_parameters(self) -> None:
+    def test_schema_has_no_unbounded_model_controlled_parameters(self) -> None:
         self.assertEqual(plugin.MAIL_REPORT_SCHEMA["parameters"]["properties"], {})
         self.assertFalse(plugin.MAIL_REPORT_SCHEMA["parameters"]["additionalProperties"])
         self.assertEqual(plugin.NEW_MAIL_REVIEW_SCHEMA["parameters"]["properties"], {})
         self.assertFalse(plugin.NEW_MAIL_REVIEW_SCHEMA["parameters"]["additionalProperties"])
+        self.assertEqual(
+            set(plugin.MAIL_ACTION_SCHEMA["parameters"]["properties"]),
+            {"batch_id", "action", "confirmation"},
+        )
+        self.assertEqual(plugin.MAIL_ACTION_SCHEMA["parameters"]["properties"]["action"]["enum"], ["label", "archive", "spam"])
+
+    def test_mail_action_is_disabled_until_explicitly_enabled(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            os.environ["PERSONAL_ASSISTANT_DATA_DIR"] = tmp
+            result = json.loads(plugin.handle_mail_action({
+                "batch_id": "new-20260919T100000Z-abcdef",
+                "action": "archive",
+                "confirmation": "APPROVE archive new-20260919T100000Z-abcdef",
+            }))
+        os.environ.pop("PERSONAL_ASSISTANT_DATA_DIR", None)
+        self.assertFalse(result["success"])
+        self.assertIn("disabled", result["error"])
 
 
 if __name__ == "__main__":

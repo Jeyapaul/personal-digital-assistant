@@ -9,6 +9,7 @@ INTERNAL_NET=${PDA_INTERNAL_NETWORK:-personal-assistant-internal}
 PROXY=${PDA_EGRESS_CONTAINER:-personal-assistant-egress}
 MAIL_SOURCES=${PDA_MAIL_SOURCES:-gmail}
 NEW_MAIL_REVIEW=${PDA_NEW_MAIL_REVIEW:-true}
+MAIL_MUTATION=${PDA_MAIL_MUTATION_ENABLED:-false}
 MODEL=${PDA_MODEL:-qwen3.8-pda:64k}
 case "$MODEL" in
   (*[!A-Za-z0-9._:-]*) echo "Invalid PDA_MODEL" >&2; exit 2 ;;
@@ -86,6 +87,7 @@ docker run -d \
   -e PERSONAL_ASSISTANT_DATA_DIR=/data \
   -e PDA_MAIL_SOURCES="$MAIL_SOURCES" \
   -e PDA_NEW_MAIL_REVIEW="$NEW_MAIL_REVIEW" \
+  -e PDA_MAIL_MUTATION_ENABLED="$MAIL_MUTATION" \
   "$IMAGE"
 
 echo "Started $CONTAINER"
