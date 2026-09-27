@@ -1,7 +1,7 @@
 # Publishing checklist
 
-The project is being prepared for its public GitHub release. The public project
-site is deployed from `site/` by `.github/workflows/pages.yml`.
+The project is published in the public GitHub repository below. The public
+project site is deployed from `site/` by `.github/workflows/pages.yml`.
 
 ## Public branding pages
 
