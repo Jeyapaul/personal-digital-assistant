@@ -1,49 +1,47 @@
 # Publishing checklist
 
-This repository is locally prepared on the `main` branch with one clean
-initial commit. No GitHub remote or repository has been created.
+The project is being prepared for its public GitHub release. The public project
+site is deployed from `site/` by `.github/workflows/pages.yml`.
 
-## Before creating the repository
+## Public branding pages
 
-- Review the owner and year in `LICENSE`.
-- Decide whether the repository should be public or private initially.
-- Confirm that the current `.gitignore` and `.dockerignore` rules still exclude
-  all credentials and runtime state.
-- Keep provider credentials, Discord tokens, OAuth client files, and Hermes
-  data outside the repository.
-- Review the first commit with:
+After GitHub Pages has completed its first deployment, use:
 
-  ```bash
-  git show --stat --summary HEAD
-  git grep -n -E 'BEGIN .*PRIVATE KEY|access_token|refresh_token|client_secret' HEAD -- ':!tests'
-  ```
+- Homepage: <https://jeyapaul.github.io/personal-digital-assistant/>
+- Privacy policy: <https://jeyapaul.github.io/personal-digital-assistant/privacy.html>
+- Terms of service: <https://jeyapaul.github.io/personal-digital-assistant/terms.html>
 
-  The last command should only show code that handles those fields, never real
-  values.
+The policy identifies the self-hosted data flow, including local model
+processing and the operator-configured Discord DM. These pages are project
+information and are not legal advice. Google may require the Pages domain to be
+verified in Search Console and added as an authorized domain; if Google does
+not accept the GitHub Pages domain, configure a domain you control and point it
+to the site before submitting OAuth branding/verification.
 
-## Creating the GitHub repository later
+## Before each public push
 
-Create an empty repository without adding a README, license, or `.gitignore`,
-then add its URL locally:
+- Keep `.env`, OAuth credentials/client JSON, Discord tokens, databases, mail
+  output, screenshots, personal account IDs, and machine-specific absolute
+  paths out of the source tree.
+- Review the full Git history as well as the current staged diff. Removing a
+  credential from the latest tree does not remove it from earlier commits; if a
+  real credential is found, revoke/rotate it and purge history before pushing.
+- Do not publish private email, provider data, approval audit records, or
+  runtime data. Use only synthetic fixtures.
+- Check `.gitignore` and `.dockerignore`; review the staged file list.
+- The selected public contact email (`jeyshiva@gmail.com`) is intentionally
+  published on the site and will be visible to visitors.
 
-```bash
-git remote add origin https://github.com/OWNER/REPOSITORY.git
-git push -u origin main
-```
+## Repository and Pages settings
 
-Do not put tokens in the remote URL or shell history. Use GitHub CLI login,
-SSH, or the configured credential helper.
-
-## Repository settings
-
-After the first push:
-
-- Enable Dependabot or another dependency update process if Docker base images
-  and GitHub Actions are updated regularly.
-- Keep Actions permissions at least as restrictive as `.github/workflows/ci.yml`.
-- Enable private vulnerability reporting if the repository is public.
-- Protect `main` with pull requests and required CI checks.
-- Add a repository description and topics such as `hermes`, `ollama`,
-  `gmail`, `discord`, `docker`, and `macos`.
-- Never add runtime data, provider credentials, or personal identifiers to
-  issues, pull requests, examples, or screenshots.
+- Repository: `Jeyapaul/personal-digital-assistant` (public).
+- Set the repository website to the project homepage URL above.
+- Enable GitHub Pages with **GitHub Actions** as the build/deployment source.
+- Keep Actions permissions minimal; the Pages workflow grants only the
+  deployment permissions it needs.
+- Enable private vulnerability reporting, Dependabot alerts, and push
+  protection/secret scanning where available.
+- Protect `main` with CI checks and review requirements when the repository
+  collaboration model supports them.
+- Do not put tokens in Git remote URLs or command history. Use the authenticated
+  GitHub CLI or the harness-managed Git credentials.

@@ -1,11 +1,20 @@
 # Local Hermes state and credentials
 .env
 .env.*
+!.env.example
 *.token
 *.secret
 *.pem
 *.key
 *.p12
+*.jks
+*.keystore
+client_secret*.json
+*oauth-client*.json
+*-oauth-client*.json
+.secrets/
+/backups/
+*.pda-backup
 
 # Credentials and runtime databases, wherever a local operator places them
 **/credentials/

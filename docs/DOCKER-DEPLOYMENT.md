@@ -17,7 +17,7 @@ The assistant container runs with:
 - `no-new-privileges`.
 - PID and memory/CPU limits.
 - No Docker socket, host home directory, or terminal tool exposure.
-- Gmail-only source selection.
+- Fixed Gmail and Microsoft source selection.
 
 The container joins an internal Docker network with no direct outbound route.
 It can reach the separate Squid proxy container only. Squid allows only:
@@ -26,10 +26,10 @@ It can reach the separate Squid proxy container only. Squid allows only:
 gmail.googleapis.com
 oauth2.googleapis.com
 discord.com, gateway.discord.gg, and cdn.discordapp.com
-host.docker.internal:11434  # host Ollama
+host.docker.internal:1234  # host LM Studio model server
 ```
 
-Microsoft Graph is not in the allowlist while Microsoft is disabled. The
+Microsoft Graph is allowlisted for the enabled production source set. The
 Discord adapter uses `DISCORD_PROXY`; Python HTTP clients use the standard
 proxy variables.
 
@@ -99,24 +99,27 @@ It creates the Docker-specific read-only profile at:
 <data>/docker-config.yaml
 ```
 
-That profile points Ollama to:
+That profile points LM Studio to:
 
 ```text
-http://host.docker.internal:11434/v1
+http://host.docker.internal:1234/v1
 ```
 
-The host Ollama service must be listening on port `11434`. For the recommended
-local model profile, prepare it before starting the container:
+The host LM Studio server must be listening on port `1234` with Qwen3 30B-A3B
+loaded under the identifier `pda-qwen30`:
 
 ```bash
-./scripts/prepare-ollama-model.sh
-export PDA_MODEL=qwen3.8-pda:64k
+lms server start
+lms load qwen/qwen3-30b-a3b -c 32768 --parallel 1 --identifier pda-qwen30
+export PDA_MODEL=pda-qwen30
 ```
 
-The upstream model accepts a 128K context profile, but on the current 32 GB
-Apple Silicon host it uses approximately 20 GB while loaded and did not
-complete the full scheduled mail workflow reliably. Keep the 64K profile as
-the production default; test a larger profile separately before changing it.
+The current local model reports a 32K context. It is used for bounded
+per-message summaries and the Hermes agent-mode final relay. The relay prompt
+requires verbatim output; the Discord adapter handles successive messages when
+the final response exceeds 2,000 characters. The collector summarizes messages
+in small local batches and renders every collected message in successive
+25-message report batches.
 
 Inspect logs:
 
@@ -126,8 +129,12 @@ docker logs -f personal-assistant-hermes
 
 When Hermes runs inside Docker, do not use the host-side `hermes cron status`
 command as the health check. The gateway's Unix control socket cannot be
-placed on a macOS bind mount and is intentionally non-fatal. Use Docker
-container state and logs instead:
+placed on a macOS bind mount and is intentionally non-fatal. Hermes also
+intentionally falls back from SQLite WAL to DELETE for databases on Docker
+Desktop's cross-VM bind mount; the container still uses SQLite 3.51.3 and
+FTS5. The host-side cron installer uses the Homebrew-Python wrapper in
+`scripts/hermes-host-python.sh`, so it no longer links the vulnerable host
+SQLite 3.40.1. Use Docker container state and logs instead:
 
 ```bash
 docker ps --filter name=personal-assistant-hermes

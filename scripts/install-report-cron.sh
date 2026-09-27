@@ -2,5 +2,5 @@
 set -eu
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-HERMES_PYTHON=${HERMES_PYTHON:-$HOME/.hermes/hermes-agent/venv/bin/python}
+HERMES_PYTHON=${HERMES_PYTHON:-$ROOT/scripts/hermes-host-python.sh}
 exec "$HERMES_PYTHON" "$ROOT/scripts/install-report-cron.py"

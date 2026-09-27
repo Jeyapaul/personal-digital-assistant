@@ -85,10 +85,16 @@ Approve Gmail Modify in the browser flow. This creates
 `credentials/gmail-management.json`; do not replace `credentials/gmail.json`.
 Both files remain mode `0600`.
 
-In Google OAuth Testing
-status, refresh tokens for sensitive scopes can expire after a limited period;
-for a durable unattended deployment, publish the app or have the Workspace
-administrator approve it according to the organization's policy.
+For unattended use, Google OAuth must not remain in **Testing**: refresh tokens
+for these Gmail scopes expire after seven days in that status. Move the External
+app to **In production**, then reauthorize each enabled profile. Production
+publishing and OAuth verification are separate; Gmail read/modify scopes are
+restricted, so review the verification/security-assessment requirements before
+sharing the app. Microsoft has no corresponding Testing/In production switch
+for this device-code public-client flow. See
+[`docs/OAUTH-PRODUCTION-READINESS.md`](OAUTH-PRODUCTION-READINESS.md) for the
+provider-specific production checklist, token lifetime caveats, and current
+automation gaps.
 
 ## 3. Microsoft Graph read-only OAuth
 
@@ -239,6 +245,46 @@ The last command persists the source selection in the launchd environment so
 future container recovery keeps Microsoft enabled. Verify the container
 received both sources:
 
+New-mail organizer recommendations are delivered in a separate Discord DM and
+require a reply to that exact approval message. Supported decisions are:
+
+```text
+APPROVE ALL <batch_id>
+APPROVE <recommendation_id>
+DENY <recommendation_id>
+DENY ALL <batch_id>
+```
+
+Each recommendation includes a concise action and reason. Unmentioned
+recommendations remain unapproved until explicitly decided; they are not
+expired automatically. Decisions and provider outcomes are audited without
+persisting message bodies. The runtime mutation flag is now explicitly enabled
+for this deployment, but HTTPS unsubscribe hosts still require separate
+operator allowlisting:
+
+```text
+PDA_MAIL_MUTATION_ENABLED=true
+```
+
+Archive, spam/Junk, and provider label/category mutations use the separate
+management credentials. HTTPS one-click unsubscribe targets require an
+explicit `PDA_UNSUBSCRIBE_ALLOWED_HOSTS` allowlist and a corresponding egress
+allowlist entry. The operator-managed host file is safer than deriving proxy
+rules from untrusted mail content:
+
+```bash
+PERSONAL_ASSISTANT_DATA_DIR="$PERSONAL_ASSISTANT_DATA_DIR" \
+  python3 scripts/manage-unsubscribe-host.py add unsubscribe.example.com
+PERSONAL_ASSISTANT_DATA_DIR="$PERSONAL_ASSISTANT_DATA_DIR" \
+  PDA_RECREATE=1 scripts/start-pda-egress.sh
+scripts/run-pda-container.sh
+```
+
+The proxy then permits HTTPS only to that exact reviewed host; all other
+unsubscribe hosts remain blocked and are reported for manual review. `mailto:`
+entries are also reported for manual review because the current profiles do not
+include Gmail `send` or Graph `Mail.Send` permissions.
+
 ```bash
 docker inspect personal-assistant-hermes \
   --format '{{range .Config.Env}}{{println .}}{{end}}' | grep '^PDA_MAIL_SOURCES='
@@ -254,7 +300,8 @@ PDA_MAIL_SOURCES=gmail,microsoft \
 The script name is retained for compatibility, but it honors
 `PDA_MAIL_SOURCES` and reports safe counts/errors only; it never prints message
 bodies or tokens. Review the result for both source labels, verify that
-messages remain unread, and confirm that no attachment bytes were downloaded.
+messages are unread at collection, confirm that read marking remains pending until
+verified Discord delivery, and confirm that no attachment bytes were downloaded.
 
 ## 5. What is deliberately not required
 
@@ -262,9 +309,11 @@ messages remain unread, and confirm that no attachment bytes were downloaded.
 - No Himalaya installation for the scheduled assistant.
 - No SMTP configuration.
 - No `gws` installation.
-- No Google Calendar, Drive, Docs, Sheets, Contacts, Gmail send, or Gmail
-  modify permissions.
-- No Microsoft `Mail.ReadWrite` or `Mail.Send` permission.
+- No Google Calendar, Drive, Docs, Sheets, Contacts, Gmail send, or broader
+  Google Workspace permissions. Gmail `gmail.modify` is used only by the
+  separate post-delivery read-marking credential.
+- The separate management credential uses Microsoft `Mail.ReadWrite` only for
+  post-delivery read marking; it has no `Mail.Send` permission.
 
 ## 6. Live verification after both providers are configured
 

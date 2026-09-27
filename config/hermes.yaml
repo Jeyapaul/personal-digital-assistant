@@ -1,20 +1,26 @@
 # Phase 1 Hermes profile template.
 # scripts/prepare-hermes-home.sh copies this to the persistent Hermes home.
 
-_config_version: 39
+_config_version: 40
 
 timezone: Asia/Kolkata
 
+# Deliver scheduled reports without Hermes' technical cron wrapper.
+cron:
+  wrap_response: false
+
 model:
-  # Selected from the phase-1 Ollama probe; re-run the probe after model changes.
-  default: qwen3.8-pda:64k
-  provider: ollama
-  base_url: http://127.0.0.1:11434/v1
+  # LM Studio host model; the Docker profile uses host.docker.internal.
+  default: pda-qwen30
+  provider: lmstudio
+  base_url: http://127.0.0.1:1234/v1
   api_mode: chat_completions
+  context_length: 32768
+  max_tokens: 8192
 
 database:
   # Safer default for a macOS bind-mounted persistent directory.
-  journal_mode: delete
+  journal_mode: wal
 
 agent:
   max_turns: 6
@@ -43,6 +49,7 @@ tools:
     - clarify
     - discord_admin
     - a2a
+    - personal-assistant-mail
 
 # Phase 2 exposes only the fixed read-only mail capability.
 toolsets:

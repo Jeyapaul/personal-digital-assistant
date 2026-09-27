@@ -11,8 +11,7 @@ sources:
     token_file: credentials/gmail.json
     oauth_setup: scripts/google-gmail-oauth.py
   microsoft:
-    enabled: false
-    # Enable after Microsoft OAuth is completed.
+    enabled: true
     oauth_scope: Mail.Read
     token_file: credentials/microsoft.json
     oauth_setup: scripts/microsoft-mail-oauth.py
@@ -24,8 +23,9 @@ policy:
   leave_unread: true
   download_attachments: false
   include_attachment_names: true
-  max_messages: 25
-  # Keep model-facing tool results bounded for local-model context windows.
+  report_batch_size: 25
+  # Provider pagination continues until exhaustion; batches are only a Discord/report limit.
+  # Keep each model-facing body bounded for local-model context windows.
   max_body_chars: 250
   allowed_api_hosts:
     - gmail.googleapis.com
@@ -38,5 +38,10 @@ management:
   historical_backfill_enabled: false
   initial_cursor: deployment_time
   max_new_messages_per_source: 15
-  mutation_enabled: false
-  mark_reported_read_after_discord_delivery: false
+  mutation_enabled: true
+  approval_expiry_hours: 0  # 0 means approval requests remain open indefinitely
+  unsubscribe_https_host_allowlist: []
+  # mailto unsubscribe requires a separate send permission and remains disabled.
+  # The next scheduled run finalizes this only after the prior run records
+  # successful Discord delivery; failed/ambiguous delivery leaves mail unread.
+  mark_reported_read_after_discord_delivery: true

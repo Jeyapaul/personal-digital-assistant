@@ -29,10 +29,10 @@ IST = ZoneInfo("Asia/Kolkata")
 UTC = dt.timezone.utc
 GMAIL_HOST = "gmail.googleapis.com"
 GRAPH_HOST = "graph.microsoft.com"
-# Bound the model-facing result as well as each individual body. This keeps
-# tool results below the context window of the selected local model.
+# Management review remains bounded per source, while the daily report
+# collects every matching message and renders it in 25-message report batches.
 MAX_MESSAGES = 25
-MAX_PAGES = 10
+REPORT_BATCH_SIZE = 25
 # Keep the fixed tool result below local-model context limits even when a
 # message contains a very large HTML body. The report needs enough context for
 # sender/subject/action summarization, not the complete message body.
@@ -152,6 +152,24 @@ def _header(headers: Iterable[Dict[str, Any]], name: str) -> str:
     return ""
 
 
+def _unsubscribe_targets(headers: Iterable[Dict[str, Any]]) -> Dict[str, Any]:
+    """Extract only explicit HTTPS unsubscribe targets and RFC mailto values."""
+    raw = _header(headers, "List-Unsubscribe")
+    https: List[str] = []
+    mailto: List[str] = []
+    for value in re.findall(r"<([^>]+)>", raw):
+        parsed = urllib.parse.urlparse(value.strip())
+        if parsed.scheme == "https" and parsed.hostname:
+            https.append(value.strip()[:2048])
+        elif parsed.scheme == "mailto" and parsed.path:
+            mailto.append(value.strip()[:512])
+    return {
+        "https": sorted(set(https)),
+        "mailto": sorted(set(mailto)),
+        "one_click": _header(headers, "List-Unsubscribe-Post").lower().find("list-unsubscribe=one-click") >= 0,
+    }
+
+
 def _gmail_parts(payload: Dict[str, Any]) -> Tuple[str, List[str]]:
     text_candidates: List[Tuple[str, str]] = []
     attachment_names: List[str] = []
@@ -208,6 +226,7 @@ def _parse_gmail_message(
         "unread": "UNREAD" in (message.get("labelIds") or []),
         "body": body,
         "attachment_names": attachment_names,
+        "unsubscribe_targets": _unsubscribe_targets(headers),
     }
 
 
@@ -353,11 +372,13 @@ def load_access_token(path: Path, required_scope: str, force_refresh: bool = Fal
             "grant_type": "refresh_token",
         }
     elif token_host == "login.microsoftonline.com":
+        # Omit scope on refresh. Microsoft issues refresh tokens with the
+        # originally consented scope set; asking for identity scopes that are
+        # absent from an older reporting credential can cause invalid_scope.
         grant = {
             "client_id": client_id,
             "refresh_token": refresh_token,
             "grant_type": "refresh_token",
-            "scope": "Mail.Read offline_access openid profile email" if required_scope == GRAPH_SCOPE else "Mail.ReadWrite offline_access openid profile email",
         }
     else:
         raise MailSourceError(f"credential refresh endpoint is not approved: {path.name}")
@@ -398,8 +419,13 @@ class GmailSource:
             f"after:{query_start.isoformat().replace('-', '/')} "
             f"before:{query_end.isoformat().replace('-', '/')}"
         )
-        for _ in range(MAX_PAGES):
-            params = {"q": gmail_query, "maxResults": str(min(MAX_MESSAGES, 50))}
+        seen_page_tokens: set[str] = set()
+        while True:
+            if page_token and page_token in seen_page_tokens:
+                raise MailSourceError("Gmail pagination repeated a page token")
+            if page_token:
+                seen_page_tokens.add(page_token)
+            params = {"q": gmail_query, "maxResults": "50"}
             if page_token:
                 params["pageToken"] = page_token
             page = _get_json(
@@ -421,8 +447,6 @@ class GmailSource:
                 parsed = _parse_gmail_message(detail, window, unread_only=unread_only)
                 if parsed:
                     messages.append(parsed)
-                if len(messages) >= MAX_MESSAGES:
-                    return messages
             page_token = page.get("nextPageToken")
             if not page_token:
                 break
@@ -446,19 +470,21 @@ class GraphSource:
                 + f"{window.end_utc.isoformat().replace('+00:00', 'Z')}"
             ),
             "$orderby": "receivedDateTime asc",
-            "$select": "id,from,subject,receivedDateTime,isRead,body,hasAttachments",
-            "$top": str(min(MAX_MESSAGES, 50)),
+            "$select": "id,from,subject,receivedDateTime,isRead,body,hasAttachments,internetMessageHeaders",
+            "$top": "50",
         }
         url = "https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages"
         messages: List[Dict[str, Any]] = []
-        for _ in range(MAX_PAGES):
+        seen_urls: set[str] = set()
+        while True:
+            if url in seen_urls:
+                raise MailSourceError("Microsoft pagination repeated a page URL")
+            seen_urls.add(url)
             page = _get_json(url, token, GRAPH_HOST, params if "?" not in url else None)
             for item in page.get("value") or []:
                 parsed = self._parse_message(item, window, token, unread_only=unread_only)
                 if parsed:
                     messages.append(parsed)
-                if len(messages) >= MAX_MESSAGES:
-                    return messages
             next_url = page.get("@odata.nextLink")
             if not next_url:
                 break
@@ -477,6 +503,7 @@ class GraphSource:
         sender_data = item.get("from") or {}
         sender = sender_data.get("emailAddress") or {}
         body_data = item.get("body") or {}
+        header_items = item.get("internetMessageHeaders") or []
         attachment_names: List[str] = []
         if item.get("hasAttachments"):
             message_id = str(item.get("id", ""))
@@ -505,6 +532,7 @@ class GraphSource:
             "unread": not bool(item.get("isRead", True)),
             "body": _body_text(str(body_data.get("content") or ""), str(body_data.get("contentType") or "")),
             "attachment_names": attachment_names,
+            "unsubscribe_targets": _unsubscribe_targets(header_items),
         }
 
 
@@ -525,6 +553,16 @@ def fixture_messages(window: DateWindow, scenario: str = "normal") -> List[Dict[
     }
     if scenario == "empty":
         return []
+    if scenario == "many":
+        return [
+            {
+                **base,
+                "id": f"fixture-gmail-{index:03d}",
+                "subject": f"Project update {index}",
+                "body": f"The project update {index} is ready for review.",
+            }
+            for index in range(1, 54)
+        ]
     if scenario == "prompt_injection":
         base.update(
             id="fixture-gmail-injection-001",
@@ -562,7 +600,7 @@ def collect_sources(window: DateWindow, data_dir: Path) -> Tuple[List[Dict[str, 
         except MailSourceError as exc:
             errors[name] = str(exc)
     all_messages.sort(key=lambda item: (item.get("received_at_ist", ""), item.get("source", ""), item.get("id", "")))
-    return all_messages[:MAX_MESSAGES], errors
+    return all_messages, errors
 
 
 def collect_sources_since(
@@ -609,15 +647,68 @@ def open_state(data_dir: Path) -> sqlite3.Connection:
     connection.execute(
         "CREATE TABLE IF NOT EXISTS report_runs ("
         "run_key TEXT PRIMARY KEY, started_at TEXT NOT NULL, status TEXT NOT NULL, "
-        "message_count INTEGER NOT NULL DEFAULT 0, error_count INTEGER NOT NULL DEFAULT 0)"
+        "message_count INTEGER NOT NULL DEFAULT 0, error_count INTEGER NOT NULL DEFAULT 0, "
+        "read_marked_at TEXT, read_error TEXT)"
     )
     connection.execute(
         "CREATE TABLE IF NOT EXISTS report_items ("
         "run_key TEXT NOT NULL, source TEXT NOT NULL, message_id TEXT NOT NULL, "
         "PRIMARY KEY (run_key, source, message_id))"
     )
+    columns = {str(row[1]) for row in connection.execute("PRAGMA table_info(report_runs)")}
+    if "read_marked_at" not in columns:
+        connection.execute("ALTER TABLE report_runs ADD COLUMN read_marked_at TEXT")
+    if "read_error" not in columns:
+        connection.execute("ALTER TABLE report_runs ADD COLUMN read_error TEXT")
     connection.commit()
     return connection
+
+
+def mark_report_pending(connection: sqlite3.Connection, run_key: str) -> None:
+    connection.execute(
+        "UPDATE report_runs SET status = 'pending_delivery', read_error = NULL "
+        "WHERE run_key = ? AND message_count > 0",
+        (run_key,),
+    )
+    connection.commit()
+
+
+def pending_report_items(connection: sqlite3.Connection) -> list[Dict[str, Any]]:
+    rows = connection.execute(
+        "SELECT r.run_key, r.started_at, i.source, i.message_id "
+        "FROM report_runs r JOIN report_items i ON i.run_key = r.run_key "
+        "WHERE r.status = 'pending_delivery' ORDER BY r.started_at, i.source, i.message_id"
+    ).fetchall()
+    return [
+        {
+            "run_key": str(row[0]),
+            "started_at": str(row[1]),
+            "source": str(row[2]),
+            "message_id": str(row[3]),
+        }
+        for row in rows
+    ]
+
+
+def finish_report_read(
+    connection: sqlite3.Connection,
+    run_key: str,
+    success: bool,
+    error: str = "",
+) -> None:
+    if success:
+        connection.execute(
+            "UPDATE report_runs SET status = 'read_marked', read_marked_at = ?, read_error = NULL "
+            "WHERE run_key = ?",
+            (dt.datetime.now(UTC).isoformat(), run_key),
+        )
+    else:
+        connection.execute(
+            "UPDATE report_runs SET status = 'pending_delivery', read_error = ? "
+            "WHERE run_key = ?",
+            (error[:500], run_key),
+        )
+    connection.commit()
 
 
 def record_run(

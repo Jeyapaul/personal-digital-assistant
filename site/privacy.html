@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Privacy information for the self-hosted Personal Digital Assistant.">
+  <title>Privacy Policy · Personal Digital Assistant</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="./">Personal Digital Assistant</a>
+    <nav aria-label="Main navigation"><a href="privacy.html" aria-current="page">Privacy</a><a href="terms.html">Terms of Service</a><a href="https://github.com/Jeyapaul/personal-digital-assistant">Source</a></nav>
+  </header>
+  <main class="document">
+    <p class="eyebrow">Last updated: September 27, 2026</p>
+    <h1>Privacy Policy</h1>
+    <p>Personal Digital Assistant (“PDA”) is open-source software that you install and operate in an environment you control. The project maintainer does not operate a hosted mailbox service and does not receive mailbox data through this website. The person or organization operating an installation controls its configuration and data.</p>
+
+    <h2>Information the software processes</h2>
+    <p>When configured and authorized by its operator, PDA can process mail from the selected Gmail and Microsoft accounts. This can include sender and recipient information made available to the integration, subject, message date, unread status, message identifiers, message text needed to prepare summaries, and attachment names. Attachment contents are not downloaded by the reference implementation.</p>
+    <p>The daily report selects unread messages from the previous calendar day in the configured time zone. A separate new-mail review can process messages received after its configured starting cursor. The assistant may create local summaries and proposed categories or actions. The reference workflow does not intentionally store complete message bodies in its state database; local report output, message metadata, recommendations, and audit records may remain in the operator’s data directory.</p>
+
+    <h2>Where information goes</h2>
+    <ul>
+      <li><strong>Operator-controlled storage:</strong> OAuth credentials, message identifiers, workflow state, recommendations, and audit information are stored in the persistent data directory chosen by the operator. Credential files are restricted by filesystem permissions. The operator is responsible for device security, backups, and deletion.</li>
+      <li><strong>Language model:</strong> Mail text is sent to the model endpoint configured by the operator to produce summaries or classifications. The documented reference deployment uses a local LM Studio model. If an operator configures a hosted model instead, the relevant message content is sent to that provider and its terms and privacy practices apply.</li>
+      <li><strong>Discord:</strong> The reference deployment sends rendered reports and separate approval notifications to the operator’s configured Discord direct message. Discord receives and retains those messages under Discord’s own policies. Do not configure a public channel for private mail content.</li>
+      <li><strong>Mail providers:</strong> Gmail and Microsoft receive OAuth/API requests needed to read the selected mail and, only when enabled and explicitly approved, perform supported mailbox actions.</li>
+      <li><strong>Website hosting:</strong> These informational pages are hosted by GitHub Pages. GitHub may process technical request data under its own privacy statement.</li>
+    </ul>
+    <p>The project maintainer does not sell mailbox information or collect it for advertising. The static project website does not include analytics or advertising scripts.</p>
+
+    <h2>Permissions and mailbox actions</h2>
+    <p>Reporting uses Gmail read-only and Microsoft delegated mail-read permissions. Separate management credentials can enable supported organization actions. In the reference deployment, a mailbox mutation requires an authorized, explicit approval in Discord. The software may mark a successfully reported message read, apply a label or category, archive a message, move it to spam/Junk, or perform an allowlisted HTTPS one-click unsubscribe after approval. Deletion, sending mail, and automatic mailto unsubscribe are not enabled. Operators should review the installed version and configuration because this software can be modified.</p>
+
+    <h2>Retention and deletion</h2>
+    <p>PDA does not provide a central account or a maintainer-operated retention service. Data can remain in the operator’s persistent assistant directory, local reports, audit records, Discord history, and any backups until the operator deletes it. Approval requests in the reference configuration remain open until decided or closed. The operator can stop the assistant, remove its local data and backups, delete Discord messages, and revoke the OAuth grant in Google or Microsoft. Deleting local files does not delete copies held by those providers or Discord.</p>
+
+    <h2>Security</h2>
+    <p>The reference deployment keeps credentials outside the source repository, restricts credential file permissions, and supports encrypted backups. No software can guarantee absolute security. Operators should keep the host and dependencies updated, protect the device and backup password, limit OAuth scopes, and revoke exposed credentials promptly. Do not send email content, tokens, or account identifiers in public issues.</p>
+
+    <h2>Children and changes</h2>
+    <p>PDA is intended for personal productivity use by adults and is not designed for children. This policy may be updated when the software’s data practices change. The date above identifies the latest revision of this page.</p>
+
+    <h2>Contact</h2>
+    <p>For questions about this project’s privacy information, contact <a href="mailto:jeyshiva@gmail.com">jeyshiva@gmail.com</a>. For a particular installation’s mailbox data, contact the person or organization operating that installation.</p>
+  </main>
+  <footer><span>© 2026 Personal Digital Assistant</span><span><a href="./">Home</a> · <a href="terms.html">Terms of Service</a> · <a href="mailto:jeyshiva@gmail.com">Contact</a></span></footer>
+</body>
+</html>

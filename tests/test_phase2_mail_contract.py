@@ -8,6 +8,7 @@ import json
 import os
 import tempfile
 import unittest
+from unittest.mock import patch
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -41,14 +42,31 @@ class Phase2MailContractTests(unittest.TestCase):
         self.assertTrue(result["selection"]["leave_unread"])
         self.assertFalse(result["selection"]["attachments_downloaded"])
         self.assertTrue(result["content_is_untrusted_data"])
-        self.assertIn("IGNORE ALL PREVIOUS INSTRUCTIONS", result["formatted_report"])
-        self.assertIn("### 01", result["formatted_report"])
-        self.assertIn("Untrusted content excerpt", result["formatted_report"])
+        self.assertNotIn("IGNORE ALL PREVIOUS INSTRUCTIONS", result["formatted_report"])
+        self.assertIn("**1. ", result["formatted_report"])
+        self.assertNotIn("Untrusted excerpt", result["formatted_report"])
         self.assertEqual(result["message_count"], 1)
         self.assertNotIn("contentBytes", result["formatted_report"])
         os.environ.pop("PDA_MAIL_MODE", None)
         os.environ.pop("PDA_FIXTURE_SCENARIO", None)
         os.environ.pop("PERSONAL_ASSISTANT_DATA_DIR", None)
+
+    def test_each_collection_has_immutable_run_key(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            os.environ["PDA_MAIL_MODE"] = "fixture"
+            os.environ["PDA_FIXTURE_SCENARIO"] = "normal"
+            os.environ["PDA_NEW_MAIL_REVIEW"] = "false"
+            os.environ["PERSONAL_ASSISTANT_DATA_DIR"] = tmp
+            first = json.loads(plugin.handle_mail_report({}))
+            second = json.loads(plugin.handle_mail_report({}))
+            self.assertNotEqual(first["run_key"], second["run_key"])
+            connection = plugin.open_state(Path(tmp))
+            try:
+                self.assertEqual(connection.execute("select count(*) from report_runs").fetchone()[0], 2)
+            finally:
+                connection.close()
+        for key in ("PDA_MAIL_MODE", "PDA_FIXTURE_SCENARIO", "PDA_NEW_MAIL_REVIEW", "PERSONAL_ASSISTANT_DATA_DIR"):
+            os.environ.pop(key, None)
 
     def test_new_mail_review_initializes_without_historical_sweep(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -84,7 +102,24 @@ class Phase2MailContractTests(unittest.TestCase):
             set(plugin.MAIL_ACTION_SCHEMA["parameters"]["properties"]),
             {"batch_id", "action", "confirmation"},
         )
-        self.assertEqual(plugin.MAIL_ACTION_SCHEMA["parameters"]["properties"]["action"]["enum"], ["label", "archive", "spam"])
+        self.assertEqual(plugin.MAIL_ACTION_SCHEMA["parameters"]["properties"]["action"]["enum"], ["label", "archive", "spam", "unsubscribe"])
+
+    def test_post_delivery_mark_read_is_scoped_and_idempotent_shape(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch.object(plugin.mail_actions, "load_access_token", return_value="test-token") as load_token, \
+                 patch.object(plugin.mail_actions, "_request_json", return_value={}) as request:
+                result = plugin.mark_messages_read([
+                    {"source": "gmail", "message_id": "gmail-message-1"},
+                    {"source": "microsoft", "message_id": "graph-message-1"},
+                ], Path(tmp))
+        self.assertTrue(result["success"])
+        self.assertEqual(result["marked"], 2)
+        self.assertEqual(result["requested"], 2)
+        self.assertEqual(load_token.call_count, 2)
+        self.assertEqual(request.call_count, 2)
+        self.assertFalse(plugin.mark_messages_read(
+            [{"source": "gmail", "message_id": "bad id"}], Path(tmp)
+        )["success"])
 
     def test_mail_action_is_disabled_until_explicitly_enabled(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -96,7 +131,7 @@ class Phase2MailContractTests(unittest.TestCase):
             }))
         os.environ.pop("PERSONAL_ASSISTANT_DATA_DIR", None)
         self.assertFalse(result["success"])
-        self.assertIn("disabled", result["error"])
+        self.assertIn("Discord approval message", result["error"] )
 
 
 if __name__ == "__main__":

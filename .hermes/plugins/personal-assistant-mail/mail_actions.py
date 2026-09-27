@@ -20,7 +20,12 @@ from .mail_sources import (
     load_access_token,
 )
 
-ALLOWED_ACTIONS = {"label", "archive", "spam"}
+ALLOWED_ACTIONS = {"label", "archive", "spam", "unsubscribe"}
+UNSUBSCRIBE_ALLOWED_HOSTS = {
+    item.strip().lower()
+    for item in __import__("os").environ.get("PDA_UNSUBSCRIBE_ALLOWED_HOSTS", "").split(",")
+    if item.strip()
+}
 LABELS = {
     "Action needed": "PDA/Action Needed",
     "Finance": "PDA/Finance",
@@ -105,6 +110,8 @@ def _apply_gmail(message_id: str, action: str, category: str, token: str) -> Non
         body["removeLabelIds"] = ["INBOX"]
     elif action == "spam":
         body["addLabelIds"] = ["SPAM"]
+    elif action == "unsubscribe":
+        raise MailActionError("Gmail unsubscribe requires an approved HTTPS List-Unsubscribe target")
     else:
         raise MailActionError("action is not enabled")
     _request_json(
@@ -146,8 +153,99 @@ def _apply_graph(message_id: str, action: str, category: str, token: str) -> Non
             token,
             {"destinationId": destination},
         )
+    elif action == "unsubscribe":
+        raise MailActionError("Microsoft unsubscribe requires an approved HTTPS List-Unsubscribe target")
     else:
         raise MailActionError("action is not enabled")
+
+
+def _mark_gmail_read(message_id: str, token: str) -> None:
+    _request_json(
+        "POST",
+        "https://gmail.googleapis.com/gmail/v1/users/me/messages/"
+        + urllib.parse.quote(_message_id(message_id), safe="")
+        + "/modify",
+        GMAIL_HOST,
+        token,
+        {"removeLabelIds": ["UNREAD"]},
+    )
+
+
+def _mark_graph_read(message_id: str, token: str) -> None:
+    _request_json(
+        "PATCH",
+        _graph_message_url(message_id),
+        GRAPH_HOST,
+        token,
+        {"isRead": True},
+    )
+
+
+def mark_messages_read(refs: list[Dict[str, str]], data_dir: Path) -> Dict[str, Any]:
+    """Mark exactly the messages in a delivered report read.
+
+    This operation is deliberately separate from the approval-gated organizer
+    actions. It is called only by the post-delivery finalizer and is idempotent.
+    """
+    grouped: Dict[str, list[str]] = {"gmail": [], "microsoft": []}
+    for ref in refs:
+        source = str(ref.get("source", ""))
+        message_id = str(ref.get("message_id", ""))
+        if source not in grouped or not message_id:
+            return {"success": False, "marked": 0, "error": "invalid report message reference"}
+        try:
+            _message_id(message_id)
+        except MailActionError:
+            return {"success": False, "marked": 0, "error": "invalid report message reference"}
+        grouped[source].append(message_id)
+
+    marked = 0
+    errors: Dict[str, str] = {}
+    for source, message_ids in grouped.items():
+        if not message_ids:
+            continue
+        try:
+            if source == "gmail":
+                token = load_access_token(
+                    data_dir / "credentials/gmail-management.json", GMAIL_MODIFY_SCOPE
+                )
+                for message_id in message_ids:
+                    _mark_gmail_read(message_id, token)
+            else:
+                token = load_access_token(
+                    data_dir / "credentials/microsoft-management.json", GRAPH_MANAGEMENT_SCOPE
+                )
+                for message_id in message_ids:
+                    _mark_graph_read(message_id, token)
+            marked += len(message_ids)
+        except Exception as exc:  # noqa: BLE001 - return a safe retryable error
+            errors[source] = str(exc)[:240]
+
+    return {
+        "success": not errors,
+        "marked": marked,
+        "requested": len(refs),
+        "errors": errors,
+    }
+
+
+def _apply_unsubscribe(target: str) -> None:
+    parsed = urllib.parse.urlparse(target)
+    if parsed.scheme != "https" or not parsed.hostname or parsed.hostname.lower() not in UNSUBSCRIBE_ALLOWED_HOSTS:
+        raise MailActionError("unsubscribe target is not on the configured HTTPS host allowlist")
+    request = urllib.request.Request(
+        target, data=b"", headers={
+            "User-Agent": "PersonalAssistant/1.0",
+            "Content-Type": "application/x-www-form-urlencoded",
+            "List-Unsubscribe": "One-Click",
+        }, method="POST"
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=20, context=__import__("ssl").create_default_context()) as response:
+            if int(getattr(response, "status", 200)) >= 400:
+                raise MailActionError("unsubscribe endpoint rejected the request")
+    except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError, OSError) as exc:
+        raise MailActionError("unsubscribe endpoint failed") from exc
 
 
 def apply_action(
@@ -156,10 +254,14 @@ def apply_action(
     action: str,
     category: str,
     data_dir: Path,
+    target: str = "",
 ) -> None:
     """Apply exactly one allowlisted action to exactly one stored message ID."""
     if action not in ALLOWED_ACTIONS:
-        raise MailActionError("action is not enabled; delete and unsubscribe are unavailable")
+        raise MailActionError("action is not enabled; delete, trash, send, and arbitrary read actions are unavailable")
+    if action == "unsubscribe":
+        _apply_unsubscribe(target)
+        return
     if source == "gmail":
         token = load_access_token(
             data_dir / "credentials/gmail-management.json", GMAIL_MODIFY_SCOPE

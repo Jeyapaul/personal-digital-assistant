@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Probe local Ollama and llama.cpp OpenAI-compatible model endpoints.
+"""Probe the local LM Studio OpenAI-compatible model endpoint.
 
-This performs only bounded GET requests to localhost. It does not send email
-content or model prompts and does not modify Hermes configuration.
+This performs only a bounded GET request. It does not send email content or
+model prompts and does not modify Hermes configuration.
 """
 
 from __future__ import annotations
@@ -14,8 +14,7 @@ import urllib.request
 
 
 ENDPOINTS = {
-    "ollama": os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434/v1").rstrip("/"),
-    "llama_cpp": os.getenv("LLAMA_CPP_BASE_URL", "http://127.0.0.1:8080/v1").rstrip("/"),
+    "lmstudio": os.getenv("LM_BASE_URL", "http://127.0.0.1:1234/v1").rstrip("/"),
 }
 
 

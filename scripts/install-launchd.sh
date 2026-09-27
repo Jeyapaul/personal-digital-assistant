@@ -3,8 +3,8 @@ set -eu
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 DATA_DIR=${PERSONAL_ASSISTANT_DATA_DIR:-$HOME/.hermes/personal-assistant-data}
-MAIL_SOURCES=${PDA_MAIL_SOURCES:-gmail}
-MODEL=${PDA_MODEL:-qwen3.8-pda:64k}
+MAIL_SOURCES=${PDA_MAIL_SOURCES:-gmail,microsoft}
+MODEL=${PDA_MODEL:-pda-qwen30}
 LABEL=com.personal-assistant.hermes
 PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
 mkdir -p "$HOME/Library/LaunchAgents" "$DATA_DIR/lifecycle"
@@ -30,6 +30,8 @@ cat > "$PLIST" <<EOF
     <key>PDA_INTERNAL_NETWORK</key><string>personal-assistant-internal</string>
     <key>PDA_EGRESS_NETWORK</key><string>personal-assistant-egress-out</string>
     <key>PDA_MAIL_SOURCES</key><string>$MAIL_SOURCES</string>
+    <key>PDA_MAIL_MUTATION_ENABLED</key><string>true</string>
+    <key>PDA_APPROVAL_EXPIRY_HOURS</key><string>0</string>
     <key>PDA_MODEL</key><string>$MODEL</string>
   </dict>
   <key>RunAtLoad</key><true/>

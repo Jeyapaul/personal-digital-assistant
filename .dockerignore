@@ -17,6 +17,7 @@ node_modules/
 
 # Operator documentation and tests are not needed at runtime.
 docs/
+site/
 tests/
 .github/
 LICENSE

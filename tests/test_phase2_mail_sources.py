@@ -8,6 +8,7 @@ import importlib.util
 import json
 import tempfile
 import unittest
+from unittest.mock import patch
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -94,6 +95,45 @@ class MailSourceParserTests(unittest.TestCase):
     def test_model_facing_body_is_bounded(self) -> None:
         bounded = sources._safe_body("x" * (sources.MAX_BODY_CHARS + 100))
         self.assertEqual(len(bounded), sources.MAX_BODY_CHARS)
+
+    def test_gmail_collection_paginates_all_matching_messages(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            token_file = Path(tmp) / "gmail.json"
+            token_file.write_text(json.dumps({
+                "access_token": "test-token",
+                "scopes": ["https://www.googleapis.com/auth/gmail.readonly"],
+            }), encoding="utf-8")
+            token_file.chmod(0o600)
+            list_url = "https://gmail.googleapis.com/gmail/v1/users/me/messages"
+            ids = [f"message-{index:02d}" for index in range(26)]
+            received_ms = str(int((self.window.start_utc.timestamp() + 3600) * 1000))
+
+            def fake_get(url, token, host, params):
+                if url == list_url:
+                    page_ids = ids[:13] if params.get("pageToken") is None else ids[13:]
+                    return {
+                        "messages": [{"id": message_id} for message_id in page_ids],
+                        **({"nextPageToken": "page-2"} if params.get("pageToken") is None else {}),
+                    }
+                message_id = url.rsplit("/", 1)[-1]
+                return {
+                    "id": message_id,
+                    "labelIds": ["INBOX", "UNREAD"],
+                    "internalDate": received_ms,
+                    "payload": {
+                        "headers": [
+                            {"name": "From", "value": "Sender <sender@example.test>"},
+                            {"name": "Subject", "value": message_id},
+                        ],
+                        "mimeType": "text/plain",
+                        "body": {"data": "SGVsbG8"},
+                    },
+                }
+
+            with patch.object(sources, "_get_json", side_effect=fake_get):
+                messages = sources.GmailSource(token_file).collect(self.window)
+            self.assertEqual(len(messages), 26)
+            self.assertEqual(messages[-1]["id"], "message-25")
 
     def test_graph_parser_keeps_body_metadata_without_attachment_bytes(self) -> None:
         received = self.window.start_utc.isoformat().replace("+00:00", "Z")

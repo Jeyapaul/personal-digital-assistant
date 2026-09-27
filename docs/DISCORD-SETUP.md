@@ -49,12 +49,26 @@ This is idempotent. It creates or updates one job named
 Schedule: 0 10 * * *
 Timezone: Asia/Kolkata
 Delivery: discord:<resolved DM channel ID>
-Toolset: personal-assistant-mail only
-Model: the configured `PDA_MODEL` via Ollama (recommended: `qwen3.8-pda:64k`)
+Model: the configured LM Studio `PDA_MODEL`; production requires native context >= 64K
+Mode: Hermes agent-mode delivery with a fixed pre-run collector and local model summaries
 ```
 
-The prompt instructs Hermes to call `mail_report` exactly once and treat email
-bodies as untrusted data.
+The fixed pre-run collector calls the bounded `mail_report` capability exactly
+once, summarizes every returned message in batches of five, and renders all
+messages in successive report batches of at most 25 messages. Hermes agent mode
+is instructed to relay the complete script output verbatim without summarizing,
+shortening, or reordering it. The final response is delivered through the
+Discord adapter, which automatically sends successive messages under Discord's
+2,000-character limit. The next scheduled run marks only the prior
+report's messages read after successful delivery is verified; failed delivery
+leaves them unread. New-mail mutation recommendations are sent as a separate
+approval DM. Reply to that exact approval message with `APPROVE ALL <batch_id>`,
+`APPROVE <recommendation_id>`, or `DENY <recommendation_id>`. Every decision is audited. Unmentioned recommendations remain unapproved
+until explicitly decided, and approval requests remain open indefinitely.
+Mutations are enabled only through the explicit `PDA_MAIL_MUTATION_ENABLED=true`
+configuration.
+The current 32K model is retained only for bounded validation until a 64K+
+candidate is approved.
 
 ## Start the gateway
 

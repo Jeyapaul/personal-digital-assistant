@@ -2,10 +2,16 @@
 
 ## Architecture decision
 
-Hermes remains the scheduler, local-model runner, and fixed capability host.
-The scheduled profile exposes only `mail_report`; it does not expose terminal,
-skills, Himalaya, the general Google Workspace skill, shell execution, or
-provider mutation operations.
+Hermes remains the scheduler, agent-mode Discord relay, local-model runner, and
+fixed capability host. The scheduled agent receives a complete pre-run report
+and is instructed to relay it verbatim; the Discord adapter handles successive
+messages when needed. The current deployment uses local LM Studio with Qwen3
+30B-A3B; an OpenRouter migration is evaluated but not selected in
+[`docs/OPENROUTER-MODEL-EVALUATION.md`](OPENROUTER-MODEL-EVALUATION.md).
+The fixed collector exposes only the operator-authored `mail_report` boundary;
+its scheduled profile exposes no callable mail tool. It does not expose
+terminal, skills, Himalaya, the general Google Workspace skill, shell execution,
+or provider mutation operations.
 
 The Google Workspace Hermes skill is useful as an OAuth reference, but its
 installed setup currently requests Gmail send/modify plus Calendar, Drive,
@@ -20,16 +26,17 @@ scheduled job.
 
 ## Phases
 
-1. **Feasibility:** local Ollama model, project plugin, fixed stub, and
+1. **Feasibility:** local LM Studio model, project plugin, fixed stub, and
    prompt-injection tests. Complete.
-2. **Read-only mail:** dedicated narrow Google OAuth, Microsoft Graph device
-   OAuth, fixed previous-IST-day collection, incremental new-mail cursor review,
-   refresh-token support, SQLite run state, and offline contract tests. OAuth
-   bootstrap implementation is included; live consent is performed by the
-   operator. New-mail mutation remains disabled until a later approved phase.
+2. **Mail collection:** dedicated narrow reporting and management OAuth,
+   fixed previous-IST-day collection, incremental new-mail cursor review,
+   refresh-token support, complete provider pagination, 25-message report
+   batching, SQLite run state, post-delivery read marking, and offline contract
+   tests. OAuth bootstrap implementation is included; live consent is performed
+   by the operator. Organizer mutations remain disabled.
 3. **Delivery:** restricted Discord DM delivery and Hermes cron provisioning.
-   Gmail-only mode is supported now; Microsoft remains an optional later
-   source.
+   Gmail and Microsoft are supported when their narrow OAuth credentials are
+   available.
 4. **Deployment:** hardened multi-stage Docker image, persistent `/data`,
    temporary `/run/personal-assistant-tmp`, and network egress policy.
    Complete for the current Apple Silicon deployment. The image and Squid

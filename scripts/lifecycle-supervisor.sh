@@ -51,7 +51,7 @@ container_running() {
 
 credential_health() {
   output=$(PERSONAL_ASSISTANT_DATA_DIR="$DATA_DIR" \
-    PDA_MAIL_SOURCES="${PDA_MAIL_SOURCES:-gmail}" \
+    PDA_MAIL_SOURCES="${PDA_MAIL_SOURCES:-gmail,microsoft}" \
     python3 "$ROOT/scripts/credential-health.py" 2>&1 || true)
   if [ -n "$output" ]; then
     log "credential health: $output"

@@ -2,17 +2,23 @@
 
 Hermes-first implementation of a locked-down personal assistant.
 
+Project site: <https://jeyapaul.github.io/personal-digital-assistant/> ·
+[Privacy Policy](https://jeyapaul.github.io/personal-digital-assistant/privacy.html) ·
+[Terms of Service](https://jeyapaul.github.io/personal-digital-assistant/terms.html) ·
+[Source](https://github.com/Jeyapaul/personal-digital-assistant)
+
 ## Current scope
 
 The project provides a Gmail/Microsoft Discord assistant with a hardened Docker
 deployment and macOS launchd supervision. The default offline fixture remains
-available for testing. Microsoft Graph is disabled by default.
+available for testing. Gmail and Microsoft Graph are enabled in production when
+both reporting credentials are available.
 
 The fixture contract is:
 
 - previous IST calendar day
 - unread messages only
-- messages remain unread
+- messages remain unread during collection and are marked read only after a later run verifies successful Discord delivery
 - attachment names may be returned, but attachments are not downloaded
 - email bodies are untrusted data
 - no mailbox query, date range, permission, recipient, or shell argument is
@@ -53,16 +59,27 @@ To prepare a private Hermes home:
 ./scripts/prepare-hermes-home.sh
 ```
 
-The project uses a local Ollama model with a 64K context window, large enough
-for the bounded mail tool results. A 128K profile is supported experimentally,
-but requires substantially more memory and is not the default on a 32 GB host. Prepare the recommended derived model with:
+The project uses LM Studio with the locally downloaded Qwen3 30B-A3B Q4_K_M
+model at a 32K context window. Start LM Studio's server, load the model, and
+set the model identifier used by the deployment:
 
 ```bash
-./scripts/prepare-ollama-model.sh
+lms server start
+lms load qwen/qwen3-30b-a3b -c 32768 --parallel 1 --identifier pda-qwen30
+export PDA_MODEL=pda-qwen30
 ```
 
-Set `PDA_MODEL=qwen3.8-pda:64k` for the Docker/launchd deployment. The Hermes
-launcher uses the project plugin with:
+The scheduled workflow uses Hermes cron in agent mode with a fixed
+operator-authored collector. The local model summarizes every message and
+proposes a safe action for every message; Hermes is instructed to relay the
+complete script output verbatim without summarizing or shortening it. The
+Discord adapter automatically sends successive messages when the final response
+exceeds Discord's 2,000-character limit. Ollama is not used by the deployment. The OpenRouter alternatives
+evaluated for a future deployment are documented in
+[`docs/OPENROUTER-MODEL-EVALUATION.md`](docs/OPENROUTER-MODEL-EVALUATION.md).
+No OpenRouter model is selected or enabled.
+
+The Hermes launcher uses the project plugin with:
 
 - `HERMES_HOME` set to the persistent data directory
 - `HERMES_ENABLE_PROJECT_PLUGINS=1`
@@ -75,7 +92,7 @@ The fixed report operation always selects the previous IST calendar day and
 unread messages only. The separate `mail_new_review` operation reviews only
 messages received after its per-provider cursor, performs no provider
 mutation, and is initialized at deployment time so it does not sweep history.
-Both operations preserve the current read state. They use only these API hosts:
+Both operations preserve the current read state during collection. After a report is successfully delivered, the next scheduled run uses separate management credentials to mark only that report's messages read. Failed or ambiguous delivery leaves them unread. They use only these API hosts:
 
 - `gmail.googleapis.com` with Gmail read-only scope
 - `graph.microsoft.com` with Microsoft `Mail.Read`
@@ -85,15 +102,19 @@ requested. Message bodies are returned as untrusted data and are not persisted
 in SQLite. The model-facing schemas have no arguments, so the model cannot choose
 queries, dates, folders, recipients, cursors, or URLs. New-mail review returns
 bounded category and action proposals only; archive, unsubscribe, spam, delete,
-and read-state mutation remain disabled in this phase.
+and unrelated read-state mutation remain disabled in this phase. Report read marking is the only automatic post-delivery mutation.
 
 Provider setup is documented in [`docs/PROVIDER-SETUP.md`](docs/PROVIDER-SETUP.md).
 Use the project-local OAuth scripts rather than the broad Google Workspace
-skill:
+skill. Encrypted data backups can be created with `scripts/backup-pda-data.py`
+using `PDA_BACKUP_PASSWORD` (minimum 16 characters); keep backup output outside
+Git and mode `0600`:
 
 ```bash
 python3 scripts/google-gmail-oauth.py --help
 python3 scripts/microsoft-mail-oauth.py --help
+# The script prompts for the backup password interactively.
+./scripts/hermes-host-python.sh scripts/backup-pda-data.py
 ```
 
 They create private, refreshable credentials under:
@@ -129,7 +150,7 @@ PDA_MAIL_MODE=fixture PDA_FIXTURE_SCENARIO=prompt_injection \
 
 Discord setup instructions are in [`docs/DISCORD-SETUP.md`](docs/DISCORD-SETUP.md).
 The setup requires your Discord bot token and your numeric Discord user ID.
-Microsoft can be enabled after its delegated read-only OAuth flow is completed.
+Microsoft reporting and management are enabled after their delegated OAuth flows are completed.
 
 The activation steps are:
 
@@ -159,7 +180,7 @@ the hardened container with:
 
 The assistant container uses a read-only root filesystem, dropped capabilities,
 `no-new-privileges`, a private persistent `/data` bind mount, temporary
-`tmpfs`, and an allowlisted egress proxy for Gmail, Discord, and host Ollama.
+`tmpfs`, and an allowlisted egress proxy for Gmail, Discord, and host LM Studio.
 
 ## Phase 5 launchd supervision
 

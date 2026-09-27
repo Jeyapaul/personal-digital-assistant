@@ -1,21 +1,28 @@
 # Docker runtime profile. This is mounted read-only over /data/config.yaml.
 # It keeps the host-local profile separate from the container's host gateway
-# address for Ollama.
-_config_version: 39
+# address for LM Studio.
+_config_version: 40
 
 timezone: Asia/Kolkata
 
+# Deliver scheduled reports without Hermes' technical cron wrapper.
+cron:
+  wrap_response: false
+
 model:
-  default: qwen3.8-pda:64k
-  provider: ollama
-  base_url: http://host.docker.internal:11434/v1
+  default: pda-qwen30
+  provider: lmstudio
+  base_url: http://host.docker.internal:1234/v1
   api_mode: chat_completions
+  context_length: 32768
+  max_tokens: 8192
 
 database:
-  journal_mode: delete
+  journal_mode: wal
 
 agent:
   max_turns: 6
+  reasoning_effort: none
 
 tools:
   tool_search:
@@ -38,6 +45,9 @@ tools:
     - clarify
     - discord_admin
     - a2a
+    # The pre-run collector performs the fixed operation; the cron script is
+    # delivered directly and cannot trigger a second collection.
+    - personal-assistant-mail
 
 toolsets:
   - personal-assistant-mail
